@@ -53,8 +53,9 @@
   }
     
 canvas {
+  aspect-ratio: 1 / 1;
+  max-width: 400px;
   width: 100%;
-  max-width: 500px;
   height: auto;
 }
     
@@ -184,6 +185,7 @@ function displayTable(rows) {
         },
         options: {
           responsive: true,
+          maintainAspectRatio: true, // ← これを追加 or 確認
           aspectRatio: 1, // ← 追加！
           plugins: {
             title: {
