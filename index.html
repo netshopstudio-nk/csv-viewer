@@ -2,12 +2,9 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>csvビューア</title>
+  <title>ジャンル階層ビューア</title>
 
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <!-- jQuery + DataTables -->
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
   <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
@@ -17,83 +14,51 @@
       font-family: "Segoe UI", sans-serif;
       margin: 30px;
       font-size: 14px;
-      line-height: 1.5;
     }
-
-    form {
+    form, #genreSelectorContainer {
       display: flex;
       flex-wrap: wrap;
-      align-items: center;
       gap: 10px;
       margin-bottom: 20px;
     }
-
     table.dataTable thead th {
       background-color: #f4f4f4;
       border-bottom: 2px solid #ccc;
       padding: 8px 12px;
-      text-align: left;
     }
-
     #dataTable tbody td {
       border-bottom: 1px solid #eee;
       padding: 8px 12px;
     }
-
-    #dataTable tbody tr:nth-child(even) {
-      background-color: #fafafa;
-    }
-
-    #dataTable tbody tr:hover {
-      background-color: #f0f8ff;
-    }
+    #dataTable tbody tr:nth-child(even) { background-color: #fafafa; }
+    #dataTable tbody tr:hover { background-color: #f0f8ff; }
 
     .chart-container {
       display: flex;
       flex-direction: column;
-      gap: 60px;
+      gap: 50px;
       margin-top: 40px;
       align-items: center;
     }
-
-    .chart-box-bar {
-      width: 100%;
-      max-width: 1000px;
-    }
-
-    .chart-box-pie {
-      width: 100%;
-      max-width: 500px;
-    }
-
-    canvas {
-      width: 100% !important;
-      height: auto !important;
-    }
+    .chart-box-bar { width: 100%; max-width: 1000px; }
+    .chart-box-pie { width: 100%; max-width: 500px; }
+    canvas { width: 100% !important; height: auto !important; }
   </style>
 </head>
-
 <body>
-  <h2>csvビューア</h2>
-  <p>ジャンルと月を選んでCSVを表示できます。</p>
 
-  <form onsubmit="event.preventDefault(); loadCSV();">
-    <label>ジャンル:
-      <select id="genre">
-        <option value="セット">セット</option>
-        <option value="タン">タン</option>
-        <option value="その他">その他</option>
-      </select>
-    </label>
+  <h2>ジャンル階層ビューア</h2>
+  <p>ジャンルと月を選ぶとCSVを読み込んで表示します。</p>
 
-    <label>月:
-      <select id="month">
-        <option value="202505">2025年5月</option>
-      </select>
-    </label>
+  <div id="genreSelectorContainer"></div>
 
-    <button type="submit">表示</button>
-  </form>
+  <label>月:
+    <select id="month">
+      <option value="202505">2025年5月</option>
+    </select>
+  </label>
+
+  <button onclick="loadGenreCSV()">表示</button>
 
   <div id="tableArea"></div>
 
@@ -107,15 +72,64 @@
   </div>
 
   <script>
-    function loadCSV() {
-      const genre = document.getElementById("genre").value;
+    let genreTree;
+
+    // genre_tree.json を読み込んでセレクトボックスを初期化
+    fetch("genre_tree.json")
+      .then(res => res.json())
+      .then(data => {
+        genreTree = data;
+        createGenreSelector(0, genreTree);
+      });
+
+    function createGenreSelector(level, subtree) {
+      const container = document.getElementById("genreSelectorContainer");
+
+      // 後続のセレクト削除
+      while (container.children.length > level) {
+        container.removeChild(container.lastChild);
+      }
+
+      const select = document.createElement("select");
+      const keys = Object.keys(subtree);
+      if (keys.length === 0) return;
+
+      keys.forEach(key => {
+        const option = document.createElement("option");
+        option.value = key;
+        option.textContent = key;
+        select.appendChild(option);
+      });
+
+      select.onchange = () => {
+        const path = getCurrentGenrePath().slice(0, level).concat(select.value);
+        let node = genreTree;
+        for (let key of path) {
+          node = node[key];
+        }
+        createGenreSelector(level + 1, node);
+      };
+
+      container.appendChild(select);
+      // 子ノードがあれば自動展開
+      const firstKey = select.options[0]?.value;
+      if (firstKey) createGenreSelector(level + 1, subtree[firstKey]);
+    }
+
+    function getCurrentGenrePath() {
+      const selects = document.querySelectorAll("#genreSelectorContainer select");
+      return Array.from(selects).map(s => s.value);
+    }
+
+    function loadGenreCSV() {
+      const genrePath = getCurrentGenrePath().join("_");
       const month = document.getElementById("month").value;
-      const filename = `data/${genre}_${month}.csv`;
+      const filename = `data/${genrePath}_${month}.csv`;
 
       fetch(filename)
-        .then(response => {
-          if (!response.ok) throw new Error("CSV file not found");
-          return response.text();
+        .then(res => {
+          if (!res.ok) throw new Error("CSVファイルが見つかりません");
+          return res.text();
         })
         .then(text => {
           const rows = text.trim().split("\n").map(row => row.split(","));
@@ -123,7 +137,7 @@
           drawCharts(rows);
         })
         .catch(err => {
-          document.getElementById("tableArea").innerHTML = `<p style='color:red;'>${err.message}</p>`;
+          document.getElementById("tableArea").innerHTML = `<p style="color:red;">${err.message}</p>`;
         });
     }
 
@@ -138,7 +152,6 @@
       }
       html += "</tbody></table>";
       document.getElementById("tableArea").innerHTML = html;
-
       $('#dataTable').DataTable();
     }
 
@@ -168,17 +181,10 @@
         options: {
           responsive: true,
           plugins: {
-            title: {
-              display: true,
-              text: "ジャンル別 売上指標"
-            },
-            legend: {
-              position: "top"
-            }
+            title: { display: true, text: "ジャンル別 売上指標" },
+            legend: { position: "top" }
           },
-          layout: {
-            padding: 10
-          }
+          layout: { padding: 10 }
         }
       });
 
@@ -191,30 +197,17 @@
           datasets: [{
             label: "シェア（%）",
             data: shares,
-            backgroundColor: [
-              "#ff6384", "#36a2eb", "#ffcd56", "#4bc0c0", "#9966ff", "#ff9f40"
-            ]
+            backgroundColor: ["#ff6384", "#36a2eb", "#ffcd56", "#4bc0c0", "#9966ff", "#ff9f40"]
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: true,
           aspectRatio: 1,
-          layout: {
-            padding: 0
-          },
+          layout: { padding: 0 },
           plugins: {
-            title: {
-              display: true,
-              text: "ジャンル別 シェア率"
-            },
-            legend: {
-              position: "bottom",
-              align: "center",
-              labels: {
-                padding: 10
-              }
-            }
+            title: { display: true, text: "ジャンル別 シェア率" },
+            legend: { position: "bottom", align: "center", labels: { padding: 10 } }
           }
         }
       });
