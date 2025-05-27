@@ -1,113 +1,146 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>ジャンル売上ビューア</title>
-
-  <!-- ✅ jQuery（最優先で読み込む） -->
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
-  <!-- ✅ DataTables -->
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
-  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-
-  <!-- ✅ Chart.js -->
+  <meta charset="UTF-8">
+  <title>ジャンル別CSVビューア</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
   <style>
     body { font-family: sans-serif; padding: 20px; }
-    label { margin-right: 10px; }
-    canvas { width: 100% !important; max-width: 800px; height: auto !important; margin: 30px 0; }
-    .chart-title { font-weight: bold; margin-top: 40px; font-size: 1.2em; }
+    table { border-collapse: collapse; margin-top: 20px; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    .chart-container canvas { width: 100% !important; height: auto !important; margin-top: 40px; }
+    #genreSelects select { margin-right: 10px; margin-bottom: 10px; }
   </style>
 </head>
 <body>
-  <h2>ジャンル売上ビューア</h2>
-  <p>CSVを選択して表示ボタンを押してください。</p>
-  <input type="file" id="csvFile" accept=".csv" />
+  <h2>ジャンル別CSVビューア</h2>
+  <p>ジャンル階層を選んでCSVを表示</p>
+
+  <div id="genreSelects"></div>
+  <label>月: 
+    <select id="month">
+      <option value="202505">2025年5月</option>
+    </select>
+  </label>
   <button onclick="loadCSV()">表示</button>
 
-  <div class="chart-title">表</div>
   <div id="tableArea"></div>
-
-  <div class="chart-title">棒グラフ（売上）</div>
-  <canvas id="barChart"></canvas>
-
-  <div class="chart-title">円グラフ（構成比）</div>
-  <canvas id="pieChart"></canvas>
+  <div class="chart-container">
+    <canvas id="barChart"></canvas>
+    <canvas id="pieChart"></canvas>
+  </div>
 
   <script>
-    function loadCSV() {
-      const file = document.getElementById('csvFile').files[0];
-      if (!file) return alert('CSVファイルを選んでください');
+    let genreTree = {};
+    let selectedPath = [];
 
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const text = e.target.result;
-        const rows = text.trim().split("\n").map(row => row.split("\t"));
-        displayTable(rows);
-        drawCharts(rows);
+    fetch('genre_tree.json')
+      .then(res => res.json())
+      .then(data => {
+        genreTree = data;
+        renderSelectUI(genreTree, document.getElementById("genreSelects"));
+      });
+
+    function renderSelectUI(tree, container, path = []) {
+      const select = document.createElement("select");
+      select.innerHTML = `<option value="">選択してください</option>`;
+      for (const key in tree) {
+        const option = document.createElement("option");
+        option.value = key;
+        option.textContent = key;
+        select.appendChild(option);
+      }
+
+      select.onchange = () => {
+        while (container.children.length > path.length + 1) {
+          container.removeChild(container.lastChild);
+        }
+
+        const selected = select.value;
+        selectedPath = [...path, selected];
+
+        if (selected && tree[selected]) {
+          renderSelectUI(tree[selected], container, [...selectedPath]);
+        }
       };
-      reader.readAsText(file);
+
+      container.appendChild(select);
+    }
+
+    function loadCSV() {
+      const month = document.getElementById("month").value;
+      const genreName = selectedPath[selectedPath.length - 1];
+      const filename = `data/${genreName}_${month}.csv`;
+
+      fetch(filename)
+        .then(response => {
+          if (!response.ok) throw new Error("CSVファイルが見つかりません");
+          return response.text();
+        })
+        .then(text => {
+          const rows = text.trim().split("\n").map(row => row.split(","));
+          displayTable(rows);
+          drawCharts(rows);
+        })
+        .catch(err => {
+          document.getElementById("tableArea").innerHTML = `<p style='color:red;'>${err.message}</p>`;
+        });
     }
 
     function displayTable(rows) {
-      let html = '<table id="dataTable"><thead><tr>';
+      let html = "<table id='dataTable'><thead><tr>";
       rows[0].forEach(col => html += `<th>${col}</th>`);
-      html += '</tr></thead><tbody>';
+      html += "</tr></thead><tbody>";
       for (let i = 1; i < rows.length; i++) {
-        html += '<tr>';
+        html += "<tr>";
         rows[i].forEach(col => html += `<td>${col}</td>`);
-        html += '</tr>';
+        html += "</tr>";
       }
-      html += '</tbody></table>';
+      html += "</tbody></table>";
       document.getElementById("tableArea").innerHTML = html;
       $("#dataTable").DataTable();
     }
 
     function drawCharts(rows) {
       const labels = [];
-      const values = [];
+      const sales = [];
+      const shares = [];
+
       for (let i = 1; i < rows.length; i++) {
         labels.push(rows[i][0]);
-        values.push(Number(rows[i][1].replace(/,/g, '')));
+        sales.push(Number(rows[i][1].replace(/,/g, "")));
+        shares.push(Number((rows[i][2] || "0").replace("%", "")));
       }
 
-      const barCtx = document.getElementById("barChart").getContext("2d");
       if (window.barChart) window.barChart.destroy();
-      window.barChart = new Chart(barCtx, {
+      window.barChart = new Chart(document.getElementById("barChart"), {
         type: "bar",
         data: {
           labels: labels,
           datasets: [{
-            label: "売上（円）",
-            data: values
+            label: "売上指標（千円）",
+            data: sales
           }]
         },
         options: {
           responsive: true,
-          plugins: {
-            title: { display: true, text: "ジャンル別 売上" }
-          }
+          plugins: { title: { display: true, text: "ジャンル別 売上指標" } }
         }
       });
 
-      const pieCtx = document.getElementById("pieChart").getContext("2d");
       if (window.pieChart) window.pieChart.destroy();
-      window.pieChart = new Chart(pieCtx, {
+      window.pieChart = new Chart(document.getElementById("pieChart"), {
         type: "pie",
         data: {
           labels: labels,
-          datasets: [{
-            label: "構成比",
-            data: values
-          }]
+          datasets: [{ label: "シェア（%）", data: shares }]
         },
         options: {
           responsive: true,
-          plugins: {
-            title: { display: true, text: "ジャンル別 構成比" }
-          }
+          plugins: { title: { display: true, text: "ジャンル別 シェア率" } }
         }
       });
     }
