@@ -8,24 +8,60 @@
   <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    table { border-collapse: collapse; margin-top: 20px; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-    .chart-container canvas { width: 100% !important; height: auto !important; margin-top: 40px; }
+    body { font-family: sans-serif; padding: 20px; max-width: 1000px; margin: auto; }
+    h2 { margin-bottom: 10px; }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+    .controls select,
+    .controls button {
+      font-size: 1rem;
+      padding: 5px 10px;
+    }
     #genreSelects select { margin-right: 10px; margin-bottom: 10px; }
+    #dataTable {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+    #dataTable thead {
+      background-color: #f0f0f0;
+    }
+    #dataTable tbody tr:nth-child(even) {
+      background-color: #fafafa;
+    }
+    #dataTable tbody tr:hover {
+      background-color: #f1f8ff;
+    }
+    .chart-container {
+      margin-top: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 60px;
+    }
+    .chart-container canvas {
+      max-width: 800px;
+      margin: 0 auto;
+    }
   </style>
 </head>
 <body>
   <h2>ジャンル別CSVビューア</h2>
   <p>ジャンル階層を選んで、該当ジャンルとその下位ジャンルのデータを表示します。</p>
 
-  <div id="genreSelects"></div>
-  <label>月: 
-    <select id="month">
-      <option value="202505">2025年5月</option>
-    </select>
-  </label>
-  <button onclick="loadCSV()">表示</button>
+  <div class="controls">
+    <div id="genreSelects"></div>
+    <label>月: 
+      <select id="month">
+        <option value="202505">2025年5月</option>
+      </select>
+    </label>
+    <button onclick="loadCSV()">表示</button>
+  </div>
 
   <div id="tableArea"></div>
   <div class="chart-container">
