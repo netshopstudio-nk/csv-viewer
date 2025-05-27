@@ -153,12 +153,18 @@
       "その他": "#bab0ab"
     };
 
+    function getColor(index) {
+      const palette = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ab"];
+      return palette[index % palette.length];
+    }
+
     function displayTable(rows) {
       let html = "<table id='dataTable'><thead><tr>";
       rows[0].forEach(col => html += `<th>${col}</th>`);
       html += "</tr></thead><tbody>";
       for (let i = 1; i < rows.length; i++) {
-        const indent = rows[i][0].split('>').length > 2 ? "└ " : "";
+        const level = rows[i][0].split('>').length;
+        const indent = level > selectedPath.length + 1 ? "└ " : "";
         html += "<tr>";
         html += `<td>${indent}${rows[i][0]}</td>`;
         html += `<td>${formatNumber(rows[i][1])}</td>`;
@@ -177,12 +183,11 @@
 
       for (let i = 1; i < rows.length; i++) {
         const full = rows[i][0];
-        const group = getGroupKey(full);
-        const color = colorMap[group] || "#76b7b2";
+        const value = Number(rows[i][1].replace(/,/g, ""));
         fullLabels.push(full);
         shortLabels.push(getLastSegment(full));
-        values.push(Number(rows[i][1].replace(/,/g, "")));
-        bgColors.push(color);
+        values.push(value);
+        bgColors.push(getColor(i));
       }
 
       if (window.barChart instanceof Chart) window.barChart.destroy();
