@@ -1,114 +1,116 @@
-<!-- 以下、必要な部分だけ差し替えればOKです -->
-<!-- CSVファイル: genre_sales.csv に保存している想定 -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>ジャンル売上ビューア</title>
+
+  <!-- ✅ jQuery（最優先で読み込む） -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+  <!-- ✅ DataTables -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+  <!-- ✅ Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    label { margin-right: 10px; }
+    canvas { width: 100% !important; max-width: 800px; height: auto !important; margin: 30px 0; }
+    .chart-title { font-weight: bold; margin-top: 40px; font-size: 1.2em; }
+  </style>
+</head>
 <body>
   <h2>ジャンル売上ビューア</h2>
-  <p>全ジャンルの売上をCSVファイルから表示します。</p>
+  <p>CSVを選択して表示ボタンを押してください。</p>
+  <input type="file" id="csvFile" accept=".csv" />
+  <button onclick="loadCSV()">表示</button>
 
-  <button onclick="loadFlatCSV()">表示</button>
-
+  <div class="chart-title">表</div>
   <div id="tableArea"></div>
 
-  <div class="chart-container">
-    <div class="chart-box-bar">
-      <canvas id="barChart"></canvas>
-    </div>
-    <div class="chart-box-pie">
-      <canvas id="pieChart"></canvas>
-    </div>
-  </div>
+  <div class="chart-title">棒グラフ（売上）</div>
+  <canvas id="barChart"></canvas>
 
-<script>
-function loadFlatCSV() {
-  fetch("genre_sales.csv")
-    .then(res => {
-      if (!res.ok) throw new Error("CSVファイルが見つかりません");
-      return res.text();
-    })
-    .then(text => {
-      const rows = text.trim().split("\n").map(row => row.split(","));
-      displayTable(rows);
-      drawCharts(rows);
-    })
-    .catch(err => {
-      document.getElementById("tableArea").innerHTML = `<p style="color:red;">${err.message}</p>`;
-    });
-}
+  <div class="chart-title">円グラフ（構成比）</div>
+  <canvas id="pieChart"></canvas>
 
-function displayTable(rows) {
-  let html = `<table id="dataTable"><thead><tr>`;
-  rows[0].forEach(col => html += `<th>${col}</th>`);
-  html += "</tr></thead><tbody>";
-  for (let i = 1; i < rows.length; i++) {
-    html += "<tr>";
-    rows[i].forEach(col => html += `<td>${col}</td>`);
-    html += "</tr>";
-  }
-  html += "</tbody></table>";
-  document.getElementById("tableArea").innerHTML = html;
-  $('#dataTable').DataTable();
-}
+  <script>
+    function loadCSV() {
+      const file = document.getElementById('csvFile').files[0];
+      if (!file) return alert('CSVファイルを選んでください');
 
-function drawCharts(rows) {
-  const labels = [];
-  const sales = [];
-
-  for (let i = 1; i < rows.length; i++) {
-    labels.push(rows[i][0]);
-    const val = Number(rows[i][1].replace(/,/g, ""));
-    sales.push(val);
-  }
-
-  const pieData = sales.slice();
-  const barCtx = document.getElementById("barChart").getContext("2d");
-  if (window.barChart instanceof Chart) window.barChart.destroy();
-  window.barChart = new Chart(barCtx, {
-    type: "bar",
-    data: {
-      labels: labels,
-      datasets: [{
-        label: "実売上（円）",
-        data: sales,
-        backgroundColor: "rgba(75, 192, 192, 0.6)"
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        title: {
-          display: true,
-          text: "ジャンル別 売上（棒グラフ）"
-        }
-      }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const text = e.target.result;
+        const rows = text.trim().split("\n").map(row => row.split("\t"));
+        displayTable(rows);
+        drawCharts(rows);
+      };
+      reader.readAsText(file);
     }
-  });
 
-  const pieCtx = document.getElementById("pieChart").getContext("2d");
-  if (window.pieChart instanceof Chart) window.pieChart.destroy();
-  window.pieChart = new Chart(pieCtx, {
-    type: "pie",
-    data: {
-      labels: labels,
-      datasets: [{
-        label: "売上シェア",
-        data: pieData,
-        backgroundColor: [
-          "#ff6384", "#36a2eb", "#ffcd56", "#4bc0c0", "#9966ff", "#ff9f40", "#c9cbcf"
-        ]
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        title: {
-          display: true,
-          text: "ジャンル別 売上シェア（円）"
+    function displayTable(rows) {
+      let html = '<table id="dataTable"><thead><tr>';
+      rows[0].forEach(col => html += `<th>${col}</th>`);
+      html += '</tr></thead><tbody>';
+      for (let i = 1; i < rows.length; i++) {
+        html += '<tr>';
+        rows[i].forEach(col => html += `<td>${col}</td>`);
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+      document.getElementById("tableArea").innerHTML = html;
+      $("#dataTable").DataTable();
+    }
+
+    function drawCharts(rows) {
+      const labels = [];
+      const values = [];
+      for (let i = 1; i < rows.length; i++) {
+        labels.push(rows[i][0]);
+        values.push(Number(rows[i][1].replace(/,/g, '')));
+      }
+
+      const barCtx = document.getElementById("barChart").getContext("2d");
+      if (window.barChart) window.barChart.destroy();
+      window.barChart = new Chart(barCtx, {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "売上（円）",
+            data: values
+          }]
         },
-        legend: {
-          position: "bottom"
+        options: {
+          responsive: true,
+          plugins: {
+            title: { display: true, text: "ジャンル別 売上" }
+          }
         }
-      }
+      });
+
+      const pieCtx = document.getElementById("pieChart").getContext("2d");
+      if (window.pieChart) window.pieChart.destroy();
+      window.pieChart = new Chart(pieCtx, {
+        type: "pie",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "構成比",
+            data: values
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: { display: true, text: "ジャンル別 構成比" }
+          }
+        }
+      });
     }
-  });
-}
-</script>
+  </script>
 </body>
+</html>
