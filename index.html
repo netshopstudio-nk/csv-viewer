@@ -13,16 +13,19 @@
     .controls {
       display: flex;
       flex-wrap: wrap;
+      align-items: center;
       gap: 10px;
       margin-bottom: 20px;
-      align-items: center;
     }
-    .controls select,
-    .controls button {
+    #genreSelects {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    select, button {
       font-size: 1rem;
       padding: 5px 10px;
     }
-    #genreSelects select { margin-right: 10px; margin-bottom: 10px; }
     #dataTable {
       border-collapse: collapse;
       width: 100%;
@@ -38,7 +41,8 @@
       gap: 60px;
     }
     .chart-container canvas {
-      max-width: 800px;
+      width: 100% !important;
+      max-width: 1000px;
       margin: 0 auto;
     }
   </style>
@@ -75,6 +79,11 @@
       });
 
     function renderSelectUI(tree, container, path = []) {
+      if (container.children.length > path.length) {
+        container.innerHTML = '';
+        renderSelectUI(genreTree, container);
+        return;
+      }
       const select = document.createElement("select");
       select.innerHTML = `<option value="">選択してください</option>`;
       for (const key in tree) {
@@ -84,7 +93,6 @@
         option.textContent = hasChildren ? `${key} ▶` : key;
         select.appendChild(option);
       }
-
       select.onchange = () => {
         while (container.children.length > path.length + 1) {
           container.removeChild(container.lastChild);
@@ -92,10 +100,9 @@
         const selected = select.value.replace(/ ▶$/, '');
         selectedPath = [...path, selected];
         if (selected && tree[selected]) {
-          renderSelectUI(tree[selected], container, [...selectedPath]);
+          renderSelectUI(tree[selected], container, selectedPath);
         }
       };
-
       container.appendChild(select);
     }
 
@@ -126,13 +133,18 @@
       return path.split('>').pop();
     }
 
+    function formatNumber(num) {
+      return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+
     function displayTable(rows) {
       let html = "<table id='dataTable'><thead><tr>";
       rows[0].forEach(col => html += `<th>${col}</th>`);
       html += "</tr></thead><tbody>";
       for (let i = 1; i < rows.length; i++) {
         html += "<tr>";
-        rows[i].forEach(col => html += `<td>${col}</td>`);
+        html += `<td>${rows[i][0]}</td>`;
+        html += `<td>${formatNumber(rows[i][1])}</td>`;
         html += "</tr>";
       }
       html += "</tbody></table>";
@@ -160,12 +172,13 @@
           datasets: [{ label: "実売上（円）", data: values }]
         },
         options: {
+          indexAxis: 'y',
           responsive: true,
           plugins: {
             title: { display: true, text: "ジャンル別 売上（棒グラフ）" },
             tooltip: {
               callbacks: {
-                label: (context) => `${fullLabels[context.dataIndex]}: ${context.formattedValue}円`
+                label: (context) => `${fullLabels[context.dataIndex]}: ${formatNumber(context.raw)}円`
               }
             }
           }
@@ -185,16 +198,7 @@
             title: { display: true, text: "ジャンル別 売上構成比（円）" },
             tooltip: {
               callbacks: {
-                label: (context) => `${fullLabels[context.dataIndex]}: ${context.formattedValue}円`
-              }
-            },
-            legend: {
-              labels: {
-                generateLabels: chart => chart.data.labels.map((label, i) => ({
-                  text: label,
-                  fillStyle: chart.data.datasets[0].backgroundColor?.[i] || '',
-                  index: i
-                }))
+                label: (context) => `${fullLabels[context.dataIndex]}: ${formatNumber(context.raw)}円`
               }
             }
           }
