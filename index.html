@@ -1,8 +1,16 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>csvビューア</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; }
+    table { border-collapse: collapse; margin-top: 20px; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    .chart-container { display: flex; flex-wrap: wrap; gap: 30px; margin-top: 40px; }
+    canvas { max-width: 500px; }
+  </style>
 </head>
 <body>
   <h2>csvビューア</h2>
@@ -24,12 +32,17 @@
 
   <button onclick="loadCSV()">表示</button>
 
-  <div id="tableArea" style="margin-top:20px;"></div>
+  <div id="tableArea"></div>
+
+  <div class="chart-container">
+    <canvas id="barChart"></canvas>
+    <canvas id="pieChart"></canvas>
+  </div>
 
   <script>
     function loadCSV() {
-      const genre = document.getElementById('genre').value;
-      const month = document.getElementById('month').value;
+      const genre = document.getElementById("genre").value;
+      const month = document.getElementById("month").value;
       const filename = `data/${genre}_${month}.csv`;
 
       fetch(filename)
@@ -39,20 +52,83 @@
         })
         .then(text => {
           const rows = text.trim().split("\n").map(row => row.split(","));
-          let html = "<table border='1'><tr>";
-          rows[0].forEach(col => html += `<th>${col}</th>`);
-          html += "</tr>";
-          for (let i = 1; i < rows.length; i++) {
-            html += "<tr>";
-            rows[i].forEach(col => html += `<td>${col}</td>`);
-            html += "</tr>";
-          }
-          html += "</table>";
-          document.getElementById("tableArea").innerHTML = html;
+          displayTable(rows);
+          drawCharts(rows);
         })
         .catch(err => {
           document.getElementById("tableArea").innerHTML = `<p style='color:red;'>${err.message}</p>`;
         });
+    }
+
+    function displayTable(rows) {
+      let html = "<table><tr>";
+      rows[0].forEach(col => html += `<th>${col}</th>`);
+      html += "</tr>";
+      for (let i = 1; i < rows.length; i++) {
+        html += "<tr>";
+        rows[i].forEach(col => html += `<td>${col}</td>`);
+        html += "</tr>";
+      }
+      html += "</table>";
+      document.getElementById("tableArea").innerHTML = html;
+    }
+
+    function drawCharts(rows) {
+      const labels = [];
+      const sales = [];
+      const shares = [];
+
+      for (let i = 1; i < rows.length; i++) {
+        labels.push(rows[i][0]); // ジャンル名
+        sales.push(Number(rows[i][1].replace(/,/g, ""))); // 売上指標
+        shares.push(parseFloat(rows[i][2].replace("%", ""))); // シェア
+      }
+
+      // 棒グラフ
+      const barCtx = document.getElementById("barChart").getContext("2d");
+      if (window.barChart) window.barChart.destroy();
+      window.barChart = new Chart(barCtx, {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "売上指標（千円）",
+            data: sales
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: {
+              display: true,
+              text: "ジャンル別 売上指標"
+            }
+          }
+        }
+      });
+
+      // 円グラフ
+      const pieCtx = document.getElementById("pieChart").getContext("2d");
+      if (window.pieChart) window.pieChart.destroy();
+      window.pieChart = new Chart(pieCtx, {
+        type: "pie",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "シェア（%）",
+            data: shares
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: {
+              display: true,
+              text: "ジャンル別 シェア率"
+            }
+          }
+        }
+      });
     }
   </script>
 </body>
