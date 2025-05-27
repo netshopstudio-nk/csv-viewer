@@ -135,17 +135,32 @@
       return path.split('>').pop();
     }
 
+    function getGroupKey(path) {
+      const parts = path.split('>');
+      return parts.length >= 3 ? parts[2] : parts[1] || parts[0];
+    }
+
     function formatNumber(num) {
       return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     }
+
+    const colorMap = {
+      "白カビ": "#4e79a7",
+      "青カビ": "#9c755f",
+      "ウォッシュ": "#59a14f",
+      "プロセス": "#f28e2b",
+      "セット・詰め合わせ": "#e15759",
+      "その他": "#bab0ab"
+    };
 
     function displayTable(rows) {
       let html = "<table id='dataTable'><thead><tr>";
       rows[0].forEach(col => html += `<th>${col}</th>`);
       html += "</tr></thead><tbody>";
       for (let i = 1; i < rows.length; i++) {
+        const indent = rows[i][0].split('>').length > 2 ? "└ " : "";
         html += "<tr>";
-        html += `<td>${rows[i][0]}</td>`;
+        html += `<td>${indent}${rows[i][0]}</td>`;
         html += `<td>${formatNumber(rows[i][1])}</td>`;
         html += "</tr>";
       }
@@ -158,12 +173,16 @@
       const fullLabels = [];
       const shortLabels = [];
       const values = [];
+      const bgColors = [];
 
       for (let i = 1; i < rows.length; i++) {
         const full = rows[i][0];
+        const group = getGroupKey(full);
+        const color = colorMap[group] || "#76b7b2";
         fullLabels.push(full);
         shortLabels.push(getLastSegment(full));
         values.push(Number(rows[i][1].replace(/,/g, "")));
+        bgColors.push(color);
       }
 
       if (window.barChart instanceof Chart) window.barChart.destroy();
@@ -171,7 +190,7 @@
         type: "bar",
         data: {
           labels: shortLabels,
-          datasets: [{ label: "実売上（円）", data: values }]
+          datasets: [{ label: "実売上（円）", data: values, backgroundColor: bgColors }]
         },
         options: {
           indexAxis: 'y',
@@ -192,7 +211,7 @@
         type: "pie",
         data: {
           labels: shortLabels,
-          datasets: [{ label: "構成比", data: values }]
+          datasets: [{ label: "構成比", data: values, backgroundColor: bgColors }]
         },
         options: {
           responsive: true,
