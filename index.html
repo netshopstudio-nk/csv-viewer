@@ -12,15 +12,15 @@
     h2 { margin-bottom: 10px; }
     .controls {
       display: flex;
-      flex-wrap: wrap;
-      align-items: center;
+      flex-direction: column;
       gap: 10px;
       margin-bottom: 20px;
     }
-    #genreSelects {
+    .control-row {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
+      align-items: center;
     }
     select, button {
       font-size: 1rem;
@@ -52,13 +52,15 @@
   <p>ジャンル階層を選んで、該当ジャンルとその下位ジャンルのデータを表示します。</p>
 
   <div class="controls">
-    <div id="genreSelects"></div>
-    <label>月:
-      <select id="month">
-        <option value="202505">2025年5月</option>
-      </select>
-    </label>
-    <button onclick="loadCSV()">表示</button>
+    <div class="control-row" id="genreSelects"></div>
+    <div class="control-row">
+      <label>月:
+        <select id="month">
+          <option value="202505">2025年5月</option>
+        </select>
+      </label>
+      <button onclick="loadCSV()">表示</button>
+    </div>
   </div>
 
   <div id="tableArea"></div>
@@ -90,14 +92,14 @@
         const hasChildren = Object.keys(tree[key]).length > 0;
         const option = document.createElement("option");
         option.value = key;
-        option.textContent = hasChildren ? `${key} ▶` : key;
+        option.textContent = hasChildren ? `${key} ▸` : key;
         select.appendChild(option);
       }
       select.onchange = () => {
         while (container.children.length > path.length + 1) {
           container.removeChild(container.lastChild);
         }
-        const selected = select.value.replace(/ ▶$/, '');
+        const selected = select.value.replace(/ ▸$/, '');
         selectedPath = [...path, selected];
         if (selected && tree[selected]) {
           renderSelectUI(tree[selected], container, selectedPath);
