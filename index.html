@@ -115,7 +115,9 @@
         values.push(Number(rows[i][1].replace(/,/g, "")));
       }
 
-      if (window.barChart) window.barChart.destroy();
+      if (window.barChart instanceof Chart) {
+        window.barChart.destroy();
+      }
       window.barChart = new Chart(document.getElementById("barChart"), {
         type: "bar",
         data: {
@@ -128,7 +130,9 @@
         }
       });
 
-      if (window.pieChart) window.pieChart.destroy();
+      if (window.pieChart instanceof Chart) {
+        window.pieChart.destroy();
+      }
       window.pieChart = new Chart(document.getElementById("pieChart"), {
         type: "pie",
         data: {
