@@ -50,15 +50,15 @@
 
     .chart-container {
       display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      gap: 40px;
+      flex-direction: column;
+      gap: 50px;
       margin-top: 40px;
-      flex-wrap: wrap;
+      align-items: center;
     }
 
     .chart-box {
-      width: 400px;
+      width: 100%;
+      max-width: 600px;
     }
 
     canvas {
@@ -143,12 +143,11 @@
       const shares = [];
 
       for (let i = 1; i < rows.length; i++) {
-        labels.push(rows[i][0]); // ジャンル名
-        sales.push(Number(rows[i][1].replace(/,/g, ""))); // 売上指標
-        shares.push(parseFloat(rows[i][2].replace("%", ""))); // シェア
+        labels.push(rows[i][0]);
+        sales.push(Number(rows[i][1].replace(/,/g, "")));
+        shares.push(parseFloat(rows[i][2].replace("%", "")));
       }
 
-      // 棒グラフ
       const barCtx = document.getElementById("barChart").getContext("2d");
       if (window.barChart instanceof Chart) window.barChart.destroy();
       window.barChart = new Chart(barCtx, {
@@ -178,7 +177,6 @@
         }
       });
 
-      // 円グラフ
       const pieCtx = document.getElementById("pieChart").getContext("2d");
       if (window.pieChart instanceof Chart) window.pieChart.destroy();
       window.pieChart = new Chart(pieCtx, {
