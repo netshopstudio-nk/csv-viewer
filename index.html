@@ -3,92 +3,89 @@
 <head>
   <meta charset="UTF-8" />
   <title>csvビューア</title>
+
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<!-- DataTables CSS -->
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
-<!-- jQuery -->
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<!-- DataTables JS -->
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+  <!-- jQuery + DataTables -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
   <style>
-  body {
-    font-family: "Segoe UI", sans-serif;
-    margin: 30px;
-    font-size: 14px;
-    line-height: 1.5;
-  }
+    body {
+      font-family: "Segoe UI", sans-serif;
+      margin: 30px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
 
-  table {
-    border-collapse: collapse;
-    width: 100%;
-    margin-top: 20px;
-    font-size: 14px;
-  }
-
-  th {
-    background-color: #f4f4f4;
-    border-bottom: 2px solid #ccc;
-    padding: 8px 12px;
-    text-align: left;
-  }
-
-  td {
-    border-bottom: 1px solid #eee;
-    padding: 8px 12px;
-  }
-
-  tr:nth-child(even) {
-    background-color: #fafafa;
-  }
-
-  tr:hover {
-    background-color: #f0f8ff;
-  }
-
-  .chart-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 30px;
-    margin-top: 40px;
-  }
-    
-canvas {
-  aspect-ratio: 1 / 1;
-  max-width: 400px;
-  width: 100%;
-  height: auto;
-}
-    
     form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-</style>
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    table.dataTable thead th {
+      background-color: #f4f4f4;
+      border-bottom: 2px solid #ccc;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    #dataTable tbody td {
+      border-bottom: 1px solid #eee;
+      padding: 8px 12px;
+    }
+
+    #dataTable tbody tr:nth-child(even) {
+      background-color: #fafafa;
+    }
+
+    #dataTable tbody tr:hover {
+      background-color: #f0f8ff;
+    }
+
+    .chart-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 30px;
+      margin-top: 40px;
+    }
+
+    canvas {
+      aspect-ratio: 1 / 1;
+      max-width: 400px;
+      width: 100%;
+      height: auto;
+    }
+  </style>
 </head>
+
 <body>
   <h2>csvビューア</h2>
   <p>ジャンルと月を選んでCSVを表示できます。</p>
 
-<form onsubmit="event.preventDefault(); loadCSV();">
-  <label>ジャンル:
-    <select id="genre">
-      <option value="セット">セット</option>
-      <option value="タン">タン</option>
-      <option value="その他">その他</option>
-    </select>
-  </label>
+  <form onsubmit="event.preventDefault(); loadCSV();">
+    <label>ジャンル:
+      <select id="genre">
+        <option value="セット">セット</option>
+        <option value="タン">タン</option>
+        <option value="その他">その他</option>
+      </select>
+    </label>
 
-  <label>月:
-    <select id="month">
-      <option value="202505">2025年5月</option>
-    </select>
-  </label>
+    <label>月:
+      <select id="month">
+        <option value="202505">2025年5月</option>
+      </select>
+    </label>
 
-  <button type="submit">表示</button>
-</form>
+    <button type="submit">表示</button>
+  </form>
+
   <div id="tableArea"></div>
 
   <div class="chart-container">
@@ -117,21 +114,21 @@ canvas {
         });
     }
 
-function displayTable(rows) {
-  let html = `<table id="dataTable"><thead><tr>`;
-  rows[0].forEach(col => html += `<th>${col}</th>`);
-  html += "</tr></thead><tbody>";
-  for (let i = 1; i < rows.length; i++) {
-    html += "<tr>";
-    rows[i].forEach(col => html += `<td>${col}</td>`);
-    html += "</tr>";
-  }
-  html += "</tbody></table>";
-  document.getElementById("tableArea").innerHTML = html;
+    function displayTable(rows) {
+      let html = `<table id="dataTable"><thead><tr>`;
+      rows[0].forEach(col => html += `<th>${col}</th>`);
+      html += "</tr></thead><tbody>";
+      for (let i = 1; i < rows.length; i++) {
+        html += "<tr>";
+        rows[i].forEach(col => html += `<td>${col}</td>`);
+        html += "</tr>";
+      }
+      html += "</tbody></table>";
+      document.getElementById("tableArea").innerHTML = html;
 
-  // 表示後にDataTableを初期化
-  $('#dataTable').DataTable();
-}
+      // 表示後にDataTableを初期化
+      $('#dataTable').DataTable();
+    }
 
     function drawCharts(rows) {
       const labels = [];
@@ -163,6 +160,15 @@ function displayTable(rows) {
             title: {
               display: true,
               text: "ジャンル別 売上指標"
+            },
+            legend: {
+              position: "top"
+            }
+          },
+          layout: {
+            padding: {
+              top: 10,
+              bottom: 10
             }
           }
         }
@@ -185,12 +191,21 @@ function displayTable(rows) {
         },
         options: {
           responsive: true,
-          maintainAspectRatio: true, // ← これを追加 or 確認
-          aspectRatio: 1, // ← 追加！
+          maintainAspectRatio: true,
+          aspectRatio: 1,
+          layout: {
+            padding: {
+              top: 10,
+              bottom: 10
+            }
+          },
           plugins: {
             title: {
               display: true,
               text: "ジャンル別 シェア率"
+            },
+            legend: {
+              position: "bottom"
             }
           }
         }
