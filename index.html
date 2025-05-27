@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>csvビューア</title>
+</head>
+<body>
+  <h2>csvビューア</h2>
+  <p>ジャンルと月を選んでCSVを表示できます。</p>
+
+  <label>ジャンル:
+    <select id="genre">
+      <option value="セット">セット</option>
+      <option value="タン">タン</option>
+      <option value="その他">その他</option>
+    </select>
+  </label>
+
+  <label>月:
+    <select id="month">
+      <option value="202505">2025年5月</option>
+    </select>
+  </label>
+
+  <button onclick="loadCSV()">表示</button>
+
+  <div id="tableArea" style="margin-top:20px;"></div>
+
+  <script>
+    function loadCSV() {
+      const genre = document.getElementById('genre').value;
+      const month = document.getElementById('month').value;
+      const filename = `data/${genre}_${month}.csv`;
+
+      fetch(filename)
+        .then(response => {
+          if (!response.ok) throw new Error("CSV file not found");
+          return response.text();
+        })
+        .then(text => {
+          const rows = text.trim().split("\n").map(row => row.split(","));
+          let html = "<table border='1'><tr>";
+          rows[0].forEach(col => html += `<th>${col}</th>`);
+          html += "</tr>";
+          for (let i = 1; i < rows.length; i++) {
+            html += "<tr>";
+            rows[i].forEach(col => html += `<td>${col}</td>`);
+            html += "</tr>";
+          }
+          html += "</table>";
+          document.getElementById("tableArea").innerHTML = html;
+        })
+        .catch(err => {
+          document.getElementById("tableArea").innerHTML = `<p style='color:red;'>${err.message}</p>`;
+        });
+    }
+  </script>
+</body>
+</html>
