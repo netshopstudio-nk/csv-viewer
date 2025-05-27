@@ -1,64 +1,10 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <title>ジャンル階層ビューア</title>
-
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
-  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-
-  <style>
-    body {
-      font-family: "Segoe UI", sans-serif;
-      margin: 30px;
-      font-size: 14px;
-    }
-    form, #genreSelectorContainer {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-    table.dataTable thead th {
-      background-color: #f4f4f4;
-      border-bottom: 2px solid #ccc;
-      padding: 8px 12px;
-    }
-    #dataTable tbody td {
-      border-bottom: 1px solid #eee;
-      padding: 8px 12px;
-    }
-    #dataTable tbody tr:nth-child(even) { background-color: #fafafa; }
-    #dataTable tbody tr:hover { background-color: #f0f8ff; }
-
-    .chart-container {
-      display: flex;
-      flex-direction: column;
-      gap: 50px;
-      margin-top: 40px;
-      align-items: center;
-    }
-    .chart-box-bar { width: 100%; max-width: 1000px; }
-    .chart-box-pie { width: 100%; max-width: 500px; }
-    canvas { width: 100% !important; height: auto !important; }
-  </style>
-</head>
+<!-- 以下、必要な部分だけ差し替えればOKです -->
+<!-- CSVファイル: genre_sales.csv に保存している想定 -->
 <body>
+  <h2>ジャンル売上ビューア</h2>
+  <p>全ジャンルの売上をCSVファイルから表示します。</p>
 
-  <h2>ジャンル階層ビューア</h2>
-  <p>ジャンルと月を選ぶとCSVを読み込んで表示します。</p>
-
-  <div id="genreSelectorContainer"></div>
-
-  <label>月:
-    <select id="month">
-      <option value="202505">2025年5月</option>
-    </select>
-  </label>
-
-  <button onclick="loadGenreCSV()">表示</button>
+  <button onclick="loadFlatCSV()">表示</button>
 
   <div id="tableArea"></div>
 
@@ -71,147 +17,98 @@
     </div>
   </div>
 
-  <script>
-    let genreTree;
+<script>
+function loadFlatCSV() {
+  fetch("genre_sales.csv")
+    .then(res => {
+      if (!res.ok) throw new Error("CSVファイルが見つかりません");
+      return res.text();
+    })
+    .then(text => {
+      const rows = text.trim().split("\n").map(row => row.split(","));
+      displayTable(rows);
+      drawCharts(rows);
+    })
+    .catch(err => {
+      document.getElementById("tableArea").innerHTML = `<p style="color:red;">${err.message}</p>`;
+    });
+}
 
-    // genre_tree.json を読み込んでセレクトボックスを初期化
-    fetch("genre_tree.json")
-      .then(res => res.json())
-      .then(data => {
-        genreTree = data;
-        createGenreSelector(0, genreTree);
-      });
+function displayTable(rows) {
+  let html = `<table id="dataTable"><thead><tr>`;
+  rows[0].forEach(col => html += `<th>${col}</th>`);
+  html += "</tr></thead><tbody>";
+  for (let i = 1; i < rows.length; i++) {
+    html += "<tr>";
+    rows[i].forEach(col => html += `<td>${col}</td>`);
+    html += "</tr>";
+  }
+  html += "</tbody></table>";
+  document.getElementById("tableArea").innerHTML = html;
+  $('#dataTable').DataTable();
+}
 
-    function createGenreSelector(level, subtree) {
-      const container = document.getElementById("genreSelectorContainer");
+function drawCharts(rows) {
+  const labels = [];
+  const sales = [];
 
-      // 後続のセレクト削除
-      while (container.children.length > level) {
-        container.removeChild(container.lastChild);
-      }
+  for (let i = 1; i < rows.length; i++) {
+    labels.push(rows[i][0]);
+    const val = Number(rows[i][1].replace(/,/g, ""));
+    sales.push(val);
+  }
 
-      const select = document.createElement("select");
-      const keys = Object.keys(subtree);
-      if (keys.length === 0) return;
-
-      keys.forEach(key => {
-        const option = document.createElement("option");
-        option.value = key;
-        option.textContent = key;
-        select.appendChild(option);
-      });
-
-      select.onchange = () => {
-        const path = getCurrentGenrePath().slice(0, level).concat(select.value);
-        let node = genreTree;
-        for (let key of path) {
-          node = node[key];
+  const pieData = sales.slice();
+  const barCtx = document.getElementById("barChart").getContext("2d");
+  if (window.barChart instanceof Chart) window.barChart.destroy();
+  window.barChart = new Chart(barCtx, {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "実売上（円）",
+        data: sales,
+        backgroundColor: "rgba(75, 192, 192, 0.6)"
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        title: {
+          display: true,
+          text: "ジャンル別 売上（棒グラフ）"
         }
-        createGenreSelector(level + 1, node);
-      };
-
-      container.appendChild(select);
-      // 子ノードがあれば自動展開
-      const firstKey = select.options[0]?.value;
-      if (firstKey) createGenreSelector(level + 1, subtree[firstKey]);
-    }
-
-    function getCurrentGenrePath() {
-      const selects = document.querySelectorAll("#genreSelectorContainer select");
-      return Array.from(selects).map(s => s.value);
-    }
-
-    function loadGenreCSV() {
-      const genrePath = getCurrentGenrePath().join("_");
-      const month = document.getElementById("month").value;
-      const filename = `data/${genrePath}_${month}.csv`;
-
-      fetch(filename)
-        .then(res => {
-          if (!res.ok) throw new Error("CSVファイルが見つかりません");
-          return res.text();
-        })
-        .then(text => {
-          const rows = text.trim().split("\n").map(row => row.split(","));
-          displayTable(rows);
-          drawCharts(rows);
-        })
-        .catch(err => {
-          document.getElementById("tableArea").innerHTML = `<p style="color:red;">${err.message}</p>`;
-        });
-    }
-
-    function displayTable(rows) {
-      let html = `<table id="dataTable"><thead><tr>`;
-      rows[0].forEach(col => html += `<th>${col}</th>`);
-      html += "</tr></thead><tbody>";
-      for (let i = 1; i < rows.length; i++) {
-        html += "<tr>";
-        rows[i].forEach(col => html += `<td>${col}</td>`);
-        html += "</tr>";
       }
-      html += "</tbody></table>";
-      document.getElementById("tableArea").innerHTML = html;
-      $('#dataTable').DataTable();
     }
+  });
 
-    function drawCharts(rows) {
-      const labels = [];
-      const sales = [];
-      const shares = [];
-
-      for (let i = 1; i < rows.length; i++) {
-        labels.push(rows[i][0]);
-        sales.push(Number(rows[i][1].replace(/,/g, "")));
-        shares.push(parseFloat(rows[i][2].replace("%", "")));
-      }
-
-      const barCtx = document.getElementById("barChart").getContext("2d");
-      if (window.barChart instanceof Chart) window.barChart.destroy();
-      window.barChart = new Chart(barCtx, {
-        type: "bar",
-        data: {
-          labels: labels,
-          datasets: [{
-            label: "売上指標（千円）",
-            data: sales,
-            backgroundColor: "rgba(75, 192, 192, 0.6)"
-          }]
+  const pieCtx = document.getElementById("pieChart").getContext("2d");
+  if (window.pieChart instanceof Chart) window.pieChart.destroy();
+  window.pieChart = new Chart(pieCtx, {
+    type: "pie",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "売上シェア",
+        data: pieData,
+        backgroundColor: [
+          "#ff6384", "#36a2eb", "#ffcd56", "#4bc0c0", "#9966ff", "#ff9f40", "#c9cbcf"
+        ]
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        title: {
+          display: true,
+          text: "ジャンル別 売上シェア（円）"
         },
-        options: {
-          responsive: true,
-          plugins: {
-            title: { display: true, text: "ジャンル別 売上指標" },
-            legend: { position: "top" }
-          },
-          layout: { padding: 10 }
+        legend: {
+          position: "bottom"
         }
-      });
-
-      const pieCtx = document.getElementById("pieChart").getContext("2d");
-      if (window.pieChart instanceof Chart) window.pieChart.destroy();
-      window.pieChart = new Chart(pieCtx, {
-        type: "pie",
-        data: {
-          labels: labels,
-          datasets: [{
-            label: "シェア（%）",
-            data: shares,
-            backgroundColor: ["#ff6384", "#36a2eb", "#ffcd56", "#4bc0c0", "#9966ff", "#ff9f40"]
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          aspectRatio: 1,
-          layout: { padding: 0 },
-          plugins: {
-            title: { display: true, text: "ジャンル別 シェア率" },
-            legend: { position: "bottom", align: "center", labels: { padding: 10 } }
-          }
-        }
-      });
+      }
     }
-  </script>
+  });
+}
+</script>
 </body>
-</html>
