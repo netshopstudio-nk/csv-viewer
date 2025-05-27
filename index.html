@@ -51,14 +51,19 @@
     .chart-container {
       display: flex;
       flex-direction: column;
-      gap: 50px;
+      gap: 60px;
       margin-top: 40px;
       align-items: center;
     }
 
-    .chart-box {
+    .chart-box-bar {
       width: 100%;
-      max-width: 600px;
+      max-width: 1000px;
+    }
+
+    .chart-box-pie {
+      width: 100%;
+      max-width: 500px;
     }
 
     canvas {
@@ -93,10 +98,10 @@
   <div id="tableArea"></div>
 
   <div class="chart-container">
-    <div class="chart-box">
+    <div class="chart-box-bar">
       <canvas id="barChart"></canvas>
     </div>
-    <div class="chart-box">
+    <div class="chart-box-pie">
       <canvas id="pieChart"></canvas>
     </div>
   </div>
