@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>ジャンル別CSVビューア</title>
+  <title>ジャンル別CSVビューア（全ジャンル一括ファイル対応）</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
@@ -17,7 +17,7 @@
 </head>
 <body>
   <h2>ジャンル別CSVビューア</h2>
-  <p>ジャンル階層を選んでCSVを表示</p>
+  <p>ジャンル階層を選んで、該当ジャンルとその下位ジャンルのデータを表示します。</p>
 
   <div id="genreSelects"></div>
   <label>月: 
@@ -72,8 +72,8 @@
 
     function loadCSV() {
       const month = document.getElementById("month").value;
-      const genreName = selectedPath[selectedPath.length - 1];
-      const filename = `data/${genreName}_${month}.csv`;
+      const fullPath = selectedPath.join('>');
+      const filename = `data/all_genres_${month}.csv`;
 
       fetch(filename)
         .then(response => {
@@ -81,9 +81,12 @@
           return response.text();
         })
         .then(text => {
-          const rows = text.trim().split("\n").map(row => row.split(","));
-          displayTable(rows);
-          drawCharts(rows);
+          const rows = text.trim().split("\n").map(row => row.split(/,|\t/));
+          const headers = rows[0];
+          const matched = rows.slice(1).filter(row => row[0].startsWith(fullPath));
+          const filtered = [headers, ...matched];
+          displayTable(filtered);
+          drawCharts(filtered);
         })
         .catch(err => {
           document.getElementById("tableArea").innerHTML = `<p style='color:red;'>${err.message}</p>`;
@@ -106,13 +109,10 @@
 
     function drawCharts(rows) {
       const labels = [];
-      const sales = [];
-      const shares = [];
-
+      const values = [];
       for (let i = 1; i < rows.length; i++) {
         labels.push(rows[i][0]);
-        sales.push(Number(rows[i][1].replace(/,/g, "")));
-        shares.push(Number((rows[i][2] || "0").replace("%", "")));
+        values.push(Number(rows[i][1].replace(/,/g, "")));
       }
 
       if (window.barChart) window.barChart.destroy();
@@ -120,14 +120,11 @@
         type: "bar",
         data: {
           labels: labels,
-          datasets: [{
-            label: "売上指標（千円）",
-            data: sales
-          }]
+          datasets: [{ label: "実売上（円）", data: values }]
         },
         options: {
           responsive: true,
-          plugins: { title: { display: true, text: "ジャンル別 売上指標" } }
+          plugins: { title: { display: true, text: "ジャンル別 売上（棒グラフ）" } }
         }
       });
 
@@ -136,11 +133,11 @@
         type: "pie",
         data: {
           labels: labels,
-          datasets: [{ label: "シェア（%）", data: shares }]
+          datasets: [{ label: "構成比", data: values }]
         },
         options: {
           responsive: true,
-          plugins: { title: { display: true, text: "ジャンル別 シェア率" } }
+          plugins: { title: { display: true, text: "ジャンル別 売上構成比（円）" } }
         }
       });
     }
