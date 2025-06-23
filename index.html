@@ -1,14 +1,13 @@
 <!DOCTYPE html>
-
 <html lang="ja">
 <head>
-<meta charset="utf-8"/>
-<title>ジャンル別CSVビューア</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-<link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet"/>
-<style>
+  <meta charset="utf-8"/>
+  <title>ジャンル別CSVビューア（月範囲集計）</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+  <link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet"/>
+  <style>
     body { font-family: sans-serif; padding: 20px; max-width: 1000px; margin: auto; }
     h2 { margin-bottom: 10px; }
     .controls {
@@ -27,297 +26,140 @@
       font-size: 1rem;
       padding: 5px 10px;
     }
-    #dataTable {
+    table {
       border-collapse: collapse;
       width: 100%;
       margin-top: 20px;
     }
-    #dataTable thead { background-color: #f0f0f0; }
-    #dataTable tbody tr:nth-child(even) { background-color: #fafafa; }
-    #dataTable tbody tr:hover { background-color: #f1f8ff; }
-    .chart-container {
-      margin-top: 30px;
-      display: flex;
-      flex-direction: column;
-      gap: 60px;
-    }
-    .chart-container canvas {
-      width: 100% !important;
-      max-width: 1000px;
-      margin: 0 auto;
+    thead { background-color: #f0f0f0; }
+    tbody tr:nth-child(even) { background-color: #fafafa; }
+    tbody tr:hover { background-color: #f1f8ff; }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
     }
   </style>
 </head>
 <body>
-<h2>ジャンル別CSVビューア</h2>
-<p>ジャンル階層を選んで、該当ジャンルとその下位ジャンルのデータを表示します。</p>
-<div class="controls">
-<div class="control-row" id="genreSelects"></div>
-<div class="control-row">
-<label>月:
-        <select id="month">
-<option value="202505">2025年5月</option>
-</select>
-</label>
-<button onclick="loadCSV()">表示</button>
-</div>
-</div>
-<div id="tableArea"></div>
-<div class="chart-container">
-<canvas id="barChart"></canvas>
-<canvas id="pieChart"></canvas>
-</div>
-<script>
-    let genreTree = {};
-    let selectedPath = [];
+  <h2>ジャンル別CSVビューア（月範囲集計）</h2>
+  <p>ジャンルごとの売上指数などを、指定月の範囲で合計して表示します。</p>
 
-    fetch('genre_tree.json')
-      .then(res => res.json())
-      .then(data => {
-        genreTree = data;
-        renderSelectUI(genreTree, document.getElementById("genreSelects"));
-      });
+  <div class="controls">
+    <div class="control-row">
+      <label>開始月:
+        <select id="startMonth"></select>
+      </label>
+      <label>終了月:
+        <select id="endMonth"></select>
+      </label>
+      <button onclick="loadMonthlyTotal()">表示</button>
+    </div>
+  </div>
 
-    function renderSelectUI(tree, container, path = []) {
-      if (container.children.length > path.length) {
-        container.innerHTML = '';
-        renderSelectUI(genreTree, container);
-        return;
-      }
-      const select = document.createElement("select");
-      select.innerHTML = `<option value="">選択してください</option>`;
-      for (const key in tree) {
-        const hasChildren = Object.keys(tree[key]).length > 0;
-        const option = document.createElement("option");
-        option.value = key;
-        option.textContent = hasChildren ? `${key} ▸` : key;
-        select.appendChild(option);
-      }
-      select.onchange = () => {
-        while (container.children.length > path.length + 1) {
-          container.removeChild(container.lastChild);
-        }
-        const selected = select.value.replace(/ ▸$/, '');
-        selectedPath = [...path, selected];
-        if (selected && tree[selected]) {
-          renderSelectUI(tree[selected], container, selectedPath);
-        }
-      };
-      container.appendChild(select);
-    }
+  <table id="dataTable">
+    <thead>
+      <tr>
+        <th>ジャンル名</th>
+        <th>売上指数（千円）合計</th>
+        <th>シェア合計</th>
+        <th>商品ランク入り数合計</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-    function loadCSV() {
-      const month = document.getElementById("month").value;
-      const fullPath = selectedPath.join('>');
-      const filename = `data/all_genres_${month}.csv`;
-
-      fetch(filename)
-        .then(response => {
-          if (!response.ok) throw new Error("CSVファイルが見つかりません");
-          return response.text();
-        })
-        .then(text => {
-          const rows = text.trim().split("\n").map(row => row.split(/,|\t/));
-          const headers = rows[0];
-          const matched = rows.slice(1).filter(row => row[0].startsWith(fullPath));
-          const filtered = [headers, ...matched];
-          displayTable(filtered);
-          drawCharts(filtered);
-        })
-        .catch(err => {
-          document.getElementById("tableArea").innerHTML = `<p style='color:red;'>${err.message}</p>`;
-        });
-    }
-
-    function getLastSegment(path) {
-      return path.split('>').pop();
-    }
-
-    function getGroupKey(path) {
-      const parts = path.split('>');
-      return parts.length >= 3 ? parts[2] : parts[1] || parts[0];
-    }
-
-    function formatNumber(num) {
-      return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-    }
-
-    const colorMap = {
-      "白カビ": "#4e79a7",
-      "青カビ": "#9c755f",
-      "ウォッシュ": "#59a14f",
-      "プロセス": "#f28e2b",
-      "セット・詰め合わせ": "#e15759",
-      "その他": "#bab0ab"
-    };
-
-    function getColor(index) {
-      const palette = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ab"];
-      return palette[index % palette.length];
-    }
-
-    function displayTable(rows) {
-      let html = "<table id='dataTable'><thead><tr>";
-      rows[0].forEach(col => html += `<th>${col}</th>`);
-      html += "</tr></thead><tbody>";
-      for (let i = 1; i < rows.length; i++) {
-        const level = rows[i][0].split('>').length;
-        const indent = level > selectedPath.length + 1 ? "└ " : "";
-        html += "<tr>";
-        html += `<td>${indent}${rows[i][0]}</td>`;
-        html += `<td>${formatNumber(rows[i][1])}</td>`;
-        html += "</tr>";
-      }
-      html += "</tbody></table>";
-      document.getElementById("tableArea").innerHTML = html;
-      $("#dataTable").DataTable();
-    }
-
-    function drawCharts(rows) {
-      const fullLabels = [];
-      const shortLabels = [];
-      const values = [];
-      const bgColors = [];
-
-      for (let i = 1; i < rows.length; i++) {
-        const full = rows[i][0];
-        const value = Number(rows[i][1].replace(/,/g, ""));
-        fullLabels.push(full);
-        shortLabels.push(getLastSegment(full));
-        values.push(value);
-        bgColors.push(getColor(i));
-      }
-
-      if (window.barChart instanceof Chart) window.barChart.destroy();
-      window.barChart = new Chart(document.getElementById("barChart"), {
-        type: "bar",
-        data: {
-          labels: shortLabels,
-          datasets: [{ label: "実売上（円）", data: values, backgroundColor: bgColors }]
-        },
-        options: {
-          indexAxis: 'y',
-          responsive: true,
-          plugins: {
-            title: { display: true, text: "ジャンル別 売上（棒グラフ）" },
-            tooltip: {
-              callbacks: {
-                label: (context) => `${fullLabels[context.dataIndex]}: ${formatNumber(context.raw)}円`
-              }
-            }
-          }
-        }
-      });
-
-      if (window.pieChart instanceof Chart) window.pieChart.destroy();
-      window.pieChart = new Chart(document.getElementById("pieChart"), {
-        type: "pie",
-        data: {
-          labels: shortLabels,
-          datasets: [{ label: "構成比", data: values, backgroundColor: bgColors }]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            title: { display: true, text: "ジャンル別 売上構成比（円）" },
-            tooltip: {
-              callbacks: {
-                label: (context) => `${fullLabels[context.dataIndex]}: ${formatNumber(context.raw)}円`
-              }
-            }
-          }
-        }
-      });
-    }
-  </script>
-<script id="mainScript">
-async function loadMonthlyTotal() {
-    const startMonth = document.getElementById("startMonth").value;
-    const endMonth = document.getElementById("endMonth").value;
-    if (!startMonth || !endMonth || startMonth > endMonth) {
+  <script>
+    async function loadMonthlyTotal() {
+      const startMonth = document.getElementById("startMonth").value;
+      const endMonth = document.getElementById("endMonth").value;
+      if (!startMonth || !endMonth || startMonth > endMonth) {
         alert("正しい月の範囲を選択してください");
         return;
-    }
+      }
 
-    const genreTree = await fetch("genre_tree.json").then(res => res.json());
-    const flatGenres = [];
-    function flatten(tree, parent = "") {
+      const genreTree = await fetch("genre_tree.json").then(res => res.json());
+      const flatGenres = [];
+      function flatten(tree, parent = "") {
         for (const [key, value] of Object.entries(tree)) {
-            const fullPath = parent ? parent + ">" + key : key;
-            if (typeof value === "object") {
-                flatten(value, fullPath);
-            } else {
-                flatGenres.push(fullPath);
-            }
+          const fullPath = parent ? parent + ">" + key : key;
+          if (typeof value === "object" && value !== null) {
+            flatten(value, fullPath);
+          }
         }
-    }
-    flatten(genreTree);
+      }
+      flatten(genreTree);
 
-    const months = [];
-    const [sy, sm] = startMonth.split("-").map(Number);
-    const [ey, em] = endMonth.split("-").map(Number);
-    for (let y = sy; y <= ey; y++) {
+      const months = [];
+      const [sy, sm] = startMonth.split("-").map(Number);
+      const [ey, em] = endMonth.split("-").map(Number);
+      for (let y = sy; y <= ey; y++) {
         for (let m = 1; m <= 12; m++) {
-            if ((y === sy && m < sm) || (y === ey && m > em)) continue;
-            months.push(y + ("0" + m).slice(-2));
+          if ((y === sy && m < sm) || (y === ey && m > em)) continue;
+          months.push(y + ("0" + m).slice(-2));
         }
-    }
+      }
 
-    const summary = {};
-
-    for (const month of months) {
+      const summary = {};
+      for (const month of months) {
         for (const genre of flatGenres) {
-            const filename = `data/${genre}_${month}.csv`;
-            try {
-                const response = await fetch(filename);
-                if (!response.ok) continue;
-                const text = await response.text();
-                const rows = text.trim().split("\n").slice(1);
-                for (const row of rows) {
-                    const [subGenre, salesStr, shareStr, rankStr] = row.split(",");
-                    const key = genre + ">" + subGenre;
-                    const sales = parseFloat(salesStr || 0);
-                    const share = parseFloat(shareStr || 0);
-                    const rank = parseInt(rankStr || 0);
-                    if (!summary[key]) {
-                        summary[key] = { sales: 0, share: 0, rank: 0 };
-                    }
-                    summary[key].sales += sales;
-                    summary[key].share += share;
-                    summary[key].rank += rank;
-                }
-            } catch (e) {
-                continue;
+          const filename = `data/${genre}_${month}.csv`;
+          try {
+            const response = await fetch(filename);
+            if (!response.ok) continue;
+            const text = await response.text();
+            const rows = text.trim().split("\n").slice(1);
+            for (const row of rows) {
+              const [subGenre, salesStr, shareStr, rankStr] = row.split(",");
+              const key = genre + ">" + subGenre;
+              const sales = parseFloat(salesStr || 0);
+              const share = parseFloat(shareStr || 0);
+              const rank = parseInt(rankStr || 0);
+              if (!summary[key]) {
+                summary[key] = { sales: 0, share: 0, rank: 0 };
+              }
+              summary[key].sales += sales;
+              summary[key].share += share;
+              summary[key].rank += rank;
             }
+          } catch (e) {
+            continue;
+          }
         }
+      }
+
+      const tbody = document.querySelector("#dataTable tbody");
+      tbody.innerHTML = "";
+      for (const [key, data] of Object.entries(summary)) {
+        const row = `<tr>
+          <td>${key}</td>
+          <td>${Math.round(data.sales).toLocaleString()}</td>
+          <td>${data.share.toFixed(2)}%</td>
+          <td>${data.rank}</td>
+        </tr>`;
+        tbody.innerHTML += row;
+      }
     }
 
-    const table = document.getElementById("dataTable");
-    table.innerHTML = "<tr><th>ジャンル名</th><th>売上指数（千円）合計</th><th>シェア合計</th><th>商品ランク入り数合計</th></tr>";
-    for (const [key, data] of Object.entries(summary)) {
-        const row = `<tr><td>${key}</td><td>${data.sales.toFixed(0)}</td><td>${data.share.toFixed(2)}%</td><td>${data.rank}</td></tr>`;
-        table.innerHTML += row;
-    }
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-    const start = document.getElementById("startMonth");
-    const end = document.getElementById("endMonth");
-    const options = [];
-    for (let y = 2022; y <= 2025; y++) {
+    document.addEventListener("DOMContentLoaded", () => {
+      const start = document.getElementById("startMonth");
+      const end = document.getElementById("endMonth");
+      const options = [];
+      for (let y = 2022; y <= 2025; y++) {
         for (let m = 1; m <= 12; m++) {
-            const ym = y + "-" + ("0" + m).slice(-2);
-            if (ym >= "2022-05" && ym <= "2025-05") {
-                options.push(ym);
-            }
+          const ym = y + "-" + ("0" + m).slice(-2);
+          if (ym >= "2022-05" && ym <= "2025-05") {
+            options.push(ym);
+          }
         }
-    }
-    for (const opt of options) {
+      }
+      for (const opt of options) {
         start.innerHTML += `<option value="${opt}">${opt}</option>`;
         end.innerHTML += `<option value="${opt}">${opt}</option>`;
-    }
-    start.value = "2025-04";
-    end.value = "2025-05";
-});
-</script></body>
+      }
+      start.value = "2025-04";
+      end.value = "2025-05";
+    });
+  </script>
+</body>
 </html>
