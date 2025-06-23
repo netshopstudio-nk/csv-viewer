@@ -270,3 +270,54 @@ async function loadMonthlyTotal() {
             const filename = `data/${genre}_${month}.csv`;
             try {
                 const response = await fetch(filename);
+                if (!response.ok) continue;
+                const text = await response.text();
+                const rows = text.trim().split("\n").slice(1);
+                for (const row of rows) {
+                    const [subGenre, salesStr, shareStr, rankStr] = row.split(",");
+                    const key = genre + ">" + subGenre;
+                    const sales = parseFloat(salesStr || 0);
+                    const share = parseFloat(shareStr || 0);
+                    const rank = parseInt(rankStr || 0);
+                    if (!summary[key]) {
+                        summary[key] = { sales: 0, share: 0, rank: 0 };
+                    }
+                    summary[key].sales += sales;
+                    summary[key].share += share;
+                    summary[key].rank += rank;
+                }
+            } catch (e) {
+                continue;
+            }
+        }
+    }
+
+    const table = document.getElementById("dataTable");
+    table.innerHTML = "<tr><th>ジャンル名</th><th>売上指数（千円）合計</th><th>シェア合計</th><th>商品ランク入り数合計</th></tr>";
+    for (const [key, data] of Object.entries(summary)) {
+        const row = `<tr><td>${key}</td><td>${data.sales.toFixed(0)}</td><td>${data.share.toFixed(2)}%</td><td>${data.rank}</td></tr>`;
+        table.innerHTML += row;
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const start = document.getElementById("startMonth");
+    const end = document.getElementById("endMonth");
+    const options = [];
+    for (let y = 2022; y <= 2025; y++) {
+        for (let m = 1; m <= 12; m++) {
+            const ym = y + "-" + ("0" + m).slice(-2);
+            if (ym >= "2022-05" && ym <= "2025-05") {
+                options.push(ym);
+            }
+        }
+    }
+    for (const opt of options) {
+        start.innerHTML += `<option value="${opt}">${opt}</option>`;
+        end.innerHTML += `<option value="${opt}">${opt}</option>`;
+    }
+    start.value = "2025-04";
+    end.value = "2025-05";
+});
+</script></body>
+</html>
