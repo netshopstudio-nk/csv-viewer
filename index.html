@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -35,10 +34,13 @@
     #dataTable thead { background-color: #f0f0f0; }
     #dataTable tbody tr:nth-child(even) { background-color: #fafafa; }
     #dataTable tbody tr:hover { background-color: #f1f8ff; }
-    select {
-  max-height: 200px;      /* 表示高さを固定（例：200px） */
-  overflow-y: auto;       /* スクロール表示を有効に */
-}
+    #chartContainer {
+      margin-top: 40px;
+    }
+    canvas {
+      max-width: 100%;
+      margin: 20px 0;
+    }
   </style>
 </head>
 <body>
@@ -56,7 +58,13 @@
     <button onclick="loadMonthlyTotal()">表示</button>
   </div>
 </div>
+
 <table id="dataTable"></table>
+
+<div id="chartContainer">
+  <canvas id="barChart"></canvas>
+  <canvas id="pieChart"></canvas>
+</div>
 
 <script>
 let genreTree = {};
@@ -156,29 +164,82 @@ async function loadMonthlyTotal() {
     }
   }
 
+  // 表描画
   const table = document.getElementById("dataTable");
-  table.innerHTML = "<tr><th>ジャンル名</th><th>売上指数（千円）合計</th><th>シェア合計</th><th>商品ランク入り数合計</th></tr>";
+  table.innerHTML = "<thead><tr><th>ジャンル名</th><th>売上指数（千円）</th><th>シェア</th><th>ランク入り数</th></tr></thead><tbody>";
+  const labels = [], values = [];
+
   for (const [key, data] of Object.entries(summary)) {
-    const row = `<tr><td>${key}</td><td>${data.sales.toFixed(0)}</td><td>${data.share.toFixed(2)}%</td><td>${data.rank}</td></tr>`;
-    table.innerHTML += row;
+    table.innerHTML += `<tr><td>${key}</td><td>${data.sales.toFixed(0)}</td><td>${data.share.toFixed(2)}%</td><td>${data.rank}</td></tr>`;
+    labels.push(key.split(">").pop());
+    values.push(data.sales);
   }
+  table.innerHTML += "</tbody>";
+
+  // DataTable 初期化
+  if ($.fn.dataTable.isDataTable("#dataTable")) {
+    $('#dataTable').DataTable().destroy();
+  }
+  $('#dataTable').DataTable();
+
+  // グラフ描画
+  if (window.barChart) window.barChart.destroy();
+  if (window.pieChart) window.pieChart.destroy();
+
+  const colors = labels.map((_, i) => `hsl(${i * 30 % 360}, 60%, 60%)`);
+
+  const ctxBar = document.getElementById("barChart").getContext("2d");
+  window.barChart = new Chart(ctxBar, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{ label: '売上指数（千円）', data: values, backgroundColor: colors }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        title: { display: true, text: "ジャンル別 売上（棒グラフ）" },
+        tooltip: {
+          callbacks: {
+            label: context => `${labels[context.dataIndex]}: ${values[context.dataIndex].toLocaleString()} 千円`
+          }
+        }
+      }
+    }
+  });
+
+  const ctxPie = document.getElementById("pieChart").getContext("2d");
+  window.pieChart = new Chart(ctxPie, {
+    type: 'pie',
+    data: {
+      labels: labels,
+      datasets: [{ data: values, backgroundColor: colors }]
+    },
+    options: {
+      plugins: {
+        title: { display: true, text: "ジャンル構成比（円グラフ）" },
+        tooltip: {
+          callbacks: {
+            label: context => `${labels[context.dataIndex]}: ${values[context.dataIndex].toLocaleString()} 千円`
+          }
+        }
+      }
+    }
+  });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   const start = document.getElementById("startMonth");
   const end = document.getElementById("endMonth");
-  const options = [];
   for (let y = 2022; y <= 2025; y++) {
     for (let m = 1; m <= 12; m++) {
-      const ym = y + "-" + ("0" + m).slice(-2);
+      const ym = `${y}-${("0" + m).slice(-2)}`;
       if (ym >= "2022-05" && ym <= "2025-05") {
-        options.push(ym);
+        start.innerHTML += `<option value="${ym}">${ym}</option>`;
+        end.innerHTML += `<option value="${ym}">${ym}</option>`;
       }
     }
-  }
-  for (const opt of options) {
-    start.innerHTML += `<option value="${opt}">${opt}</option>`;
-    end.innerHTML += `<option value="${opt}">${opt}</option>`;
   }
   start.value = "2025-04";
   end.value = "2025-05";
