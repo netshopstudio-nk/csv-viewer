@@ -139,16 +139,15 @@ async function loadMonthlyTotal() {
   const summary = {};
   for (const month of months) {
     for (const genre of flatGenres) {
-      const simpleGenre = genre.split(">").pop();  // ✅ ファイル名対策：最下層ジャンル名のみ使用
-      const rawFilename = `data/${simpleGenre}_${month}.csv`;
-      const filename = encodeURI(rawFilename);
+      const rawFilename = `data/${genre}_${month}.csv`;
+      const filename = encodeURI(rawFilename); // ✅ 日本語ファイル名に対応
 
       try {
         const response = await fetch(filename);
         if (!response.ok) continue;
 
         const arrayBuffer = await response.arrayBuffer();
-        const decoder = new TextDecoder("utf-8");  // 必要なら "shift_jis"
+        const decoder = new TextDecoder("utf-8");  // CSVがUTF-8ならそのまま。Shift_JISなら"shift_jis"
         const text = decoder.decode(arrayBuffer);
 
         const rows = text.trim().split("\n").slice(1);
@@ -172,7 +171,6 @@ async function loadMonthlyTotal() {
     }
   }
 
-  // 表描画
   const table = document.getElementById("dataTable");
   table.innerHTML = "<thead><tr><th>ジャンル名</th><th>売上指数（千円）</th><th>シェア</th><th>ランク入り数</th></tr></thead><tbody>";
   const labels = [], values = [];
@@ -189,7 +187,6 @@ async function loadMonthlyTotal() {
   }
   $('#dataTable').DataTable();
 
-  // グラフ描画
   if (window.barChart) window.barChart.destroy();
   if (window.pieChart) window.pieChart.destroy();
 
