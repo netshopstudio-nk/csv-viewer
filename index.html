@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8"/>
   <title>ジャンル別CSVビューア（月間合計）</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="./chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
   <link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet"/>
@@ -49,6 +50,7 @@
       <select id="endMonth"></select>
     </label>
     <button onclick="loadMonthlyTotal()">表示</button>
+    <button onclick="downloadPDF()">PDF出力</button>
   </div>
 </div>
 
@@ -60,14 +62,15 @@
 </table>
 
 <div id="chartContainer">
-  <canvas id="barChart"></canvas>
-  <canvas id="pieChart"></canvas>
-  <button id="downloadPDF">PDFとして保存</button>
+  <canvas id="barChart" width="800" height="400"></canvas>
+  <canvas id="pieChart" width="800" height="400"></canvas>
 </div>
 
 <script>
 let genreTree = {};
 let selectedPath = [];
+let latestLabels = [];
+let latestValues = [];
 
 fetch('genre_tree_merged.json')
   .then(res => res.json())
@@ -147,17 +150,17 @@ async function loadMonthlyTotal() {
     }
   }
 
-  const labels = [], values = [];
+  latestLabels = [], latestValues = [];
   for (const [key, val] of Object.entries(summary)) {
-    labels.push(key.split(">").pop());
-    values.push(val);
+    latestLabels.push(key.split(">").pop());
+    latestValues.push(val);
   }
 
-  const totalSales = values.reduce((sum, val) => sum + val, 0);
-  const tableData = labels.map((label, i) => [
+  const totalSales = latestValues.reduce((sum, val) => sum + val, 0);
+  const tableData = latestLabels.map((label, i) => [
     genrePrefix + ">" + label,
-    values[i].toLocaleString(),
-    totalSales ? ((values[i] / totalSales) * 100).toFixed(2) + "%" : "0.00%"
+    latestValues[i].toLocaleString(),
+    totalSales ? ((latestValues[i] / totalSales) * 100).toFixed(2) + "%" : "0.00%"
   ]);
 
   if ($.fn.dataTable.isDataTable("#dataTable")) {
@@ -173,21 +176,27 @@ async function loadMonthlyTotal() {
     });
   }
 
-  if (window.barChart && typeof window.barChart.destroy === "function") window.barChart.destroy();
-  if (window.pieChart && typeof window.pieChart.destroy === "function") window.pieChart.destroy();
+  if (window.barChart) window.barChart.destroy();
+  if (window.pieChart) window.pieChart.destroy();
 
-  const colors = labels.map((_, i) => `hsl(${i * 30 % 360}, 60%, 60%)`);
+  const colors = latestLabels.map((_, i) => `hsl(${i * 30 % 360}, 60%, 60%)`);
 
   const ctxBar = document.getElementById("barChart").getContext("2d");
   window.barChart = new Chart(ctxBar, {
     type: 'bar',
     data: {
-      labels: labels,
-      datasets: [{ label: '売上指数（千円）', data: values, backgroundColor: colors }]
+      labels: latestLabels,
+      datasets: [{
+        label: '売上指数（千円）',
+        data: latestValues,
+        backgroundColor: colors
+      }]
     },
     options: {
       indexAxis: 'y',
-      plugins: { title: { display: true, text: "ジャンル別 売上（棒グラフ）" } }
+      plugins: {
+        title: { display: true, text: "ジャンル別 売上（棒グラフ）" }
+      }
     }
   });
 
@@ -195,39 +204,56 @@ async function loadMonthlyTotal() {
   window.pieChart = new Chart(ctxPie, {
     type: 'pie',
     data: {
-      labels: labels,
-      datasets: [{ data: values, backgroundColor: colors }]
+      labels: latestLabels,
+      datasets: [{
+        data: latestValues,
+        backgroundColor: colors
+      }]
     },
     options: {
-      plugins: { title: { display: true, text: "ジャンル構成比（円グラフ）" } }
+      plugins: {
+        title: { display: true, text: "ジャンル構成比（円グラフ）" }
+      }
     }
   });
 }
 
-document.getElementById("downloadPDF").addEventListener("click", () => {
+async function downloadPDF() {
   const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF();
+  const pdf = new jsPDF("landscape");
+
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(16);
+  pdf.text("ジャンル別集計レポート", 10, 15);
+
+  const genre = selectedPath[selectedPath.length - 1] || "ジャンル未選択";
+  const start = document.getElementById("startMonth").value;
+  const end = document.getElementById("endMonth").value;
+  const fileName = `${genre}_${start}_${end}.pdf`;
+
+  const table = document.querySelector("#dataTable");
   const barCanvas = document.getElementById("barChart");
   const pieCanvas = document.getElementById("pieChart");
 
-  const barImg = barCanvas.toDataURL("image/png");
-  const pieImg = pieCanvas.toDataURL("image/png");
+  await html2canvas(table).then(canvas => {
+    const img = canvas.toDataURL("image/png");
+    pdf.addImage(img, 'PNG', 10, 20, 270, 60);
+  });
 
-  pdf.setFont("Helvetica");
-  pdf.setFontSize(12);
-  pdf.text("ジャンル別売上グラフ", 10, 10);
-  pdf.addImage(barImg, "PNG", 10, 20, 180, 80);
   pdf.addPage();
-  pdf.text("ジャンル別構成比グラフ", 10, 10);
-  pdf.addImage(pieImg, "PNG", 30, 20, 150, 150);
+  await html2canvas(barCanvas).then(canvas => {
+    const img = canvas.toDataURL("image/png");
+    pdf.addImage(img, 'PNG', 10, 20, 270, 120);
+  });
 
-  const lastGenre = selectedPath[selectedPath.length - 1] || "ジャンル";
-  const startMonth = document.getElementById("startMonth").value || "開始月";
-  const endMonth = document.getElementById("endMonth").value || "終了月";
-  const fileName = `${lastGenre}_${startMonth}_${endMonth}.pdf`;
+  pdf.addPage();
+  await html2canvas(pieCanvas).then(canvas => {
+    const img = canvas.toDataURL("image/png");
+    pdf.addImage(img, 'PNG', 10, 20, 270, 120);
+  });
 
   pdf.save(fileName);
-});
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   const start = document.getElementById("startMonth");
