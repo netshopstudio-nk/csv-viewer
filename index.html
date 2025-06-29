@@ -4,10 +4,10 @@
   <meta charset="utf-8"/>
   <title>ジャンル別CSVビューア（月間合計）</title>
   <script src="./chart.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet"/>
   <style>
     body { font-family: sans-serif; padding: 20px; max-width: 1000px; margin: auto; }
@@ -35,14 +35,12 @@
       max-width: 100%;
       margin: 20px 0;
     }
-    .export-buttons {
-      margin-top: 20px;
-    }
   </style>
 </head>
 <body>
 <h2>ジャンル別 月間合計ビューア</h2>
 <p>ジャンル階層を選択し、指定した期間の売上合計を表示します。</p>
+
 <div class="controls">
   <div class="control-row" id="genreSelects"></div>
   <div class="control-row">
@@ -63,13 +61,14 @@
   <tbody></tbody>
 </table>
 
+<!-- PDF出力ボタンを表の下に配置 -->
+<div style="margin-top: 10px;">
+  <button onclick="downloadPDF()">グラフPDF保存</button>
+</div>
+
 <div id="chartContainer">
   <canvas id="barChart"></canvas>
   <canvas id="pieChart"></canvas>
-</div>
-
-<div class="export-buttons">
-  <button id="exportPdfBtn">グラフPDF保存</button>
 </div>
 
 <script>
@@ -180,12 +179,8 @@ async function loadMonthlyTotal() {
     });
   }
 
-  if (window.barChart && typeof window.barChart.destroy === "function") {
-    window.barChart.destroy();
-  }
-  if (window.pieChart && typeof window.pieChart.destroy === "function") {
-    window.pieChart.destroy();
-  }
+  if (window.barChart) window.barChart.destroy();
+  if (window.pieChart) window.pieChart.destroy();
 
   const colors = labels.map((_, i) => `hsl(${i * 30 % 360}, 60%, 60%)`);
 
@@ -193,8 +188,12 @@ async function loadMonthlyTotal() {
   window.barChart = new Chart(ctxBar, {
     type: 'bar',
     data: {
-      labels: labels,
-      datasets: [{ label: '売上指数（千円）', data: values, backgroundColor: colors }]
+      labels,
+      datasets: [{
+        label: '売上指数（千円）',
+        data: values,
+        backgroundColor: colors
+      }]
     },
     options: {
       indexAxis: 'y',
@@ -208,14 +207,36 @@ async function loadMonthlyTotal() {
   window.pieChart = new Chart(ctxPie, {
     type: 'pie',
     data: {
-      labels: labels,
-      datasets: [{ data: values, backgroundColor: colors }]
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors
+      }]
     },
     options: {
       plugins: {
         title: { display: true, text: "ジャンル構成比（円グラフ）" }
       }
     }
+  });
+}
+
+async function downloadPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: "landscape" });
+
+  const chartArea = document.getElementById("chartContainer");
+  const startMonth = document.getElementById("startMonth").value;
+  const endMonth = document.getElementById("endMonth").value;
+  const fileLabel = selectedPath[selectedPath.length - 1] || "ジャンル";
+  const filename = `${fileLabel}_${startMonth}_${endMonth}.pdf`;
+
+  await html2canvas(chartArea, { scale: 2 }).then(canvas => {
+    const imgData = canvas.toDataURL("image/png");
+    const width = doc.internal.pageSize.getWidth();
+    const height = (canvas.height * width) / canvas.width;
+    doc.addImage(imgData, 'PNG', 0, 10, width, height);
+    doc.save(filename);
   });
 }
 
@@ -233,23 +254,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   start.value = "2025-04";
   end.value = "2025-05";
-
-  document.getElementById("exportPdfBtn").onclick = () => {
-    const target = document.getElementById("chartContainer");
-    html2canvas(target).then(canvas => {
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const scale = pdfWidth / canvas.width;
-      const pdfHeight = canvas.height * scale;
-      pdf.addImage(imgData, 'PNG', 0, 10, pdfWidth, pdfHeight);
-      const lastGenre = selectedPath[selectedPath.length - 1] || "ジャンル";
-      const startMonth = document.getElementById("startMonth").value;
-      const endMonth = document.getElementById("endMonth").value;
-      const filename = `${lastGenre}_${startMonth}_${endMonth}.pdf`;
-      pdf.save(filename);
-    });
-  };
 });
 </script>
 </body>
