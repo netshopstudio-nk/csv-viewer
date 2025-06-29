@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <title>ジャンル別CSVビューア（月間合計）</title>
-<script src="./chart.js"></script>
+  <script src="./chart.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
   <link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet"/>
@@ -102,22 +102,14 @@ function renderSelectUI(tree, container, path = []) {
   container.appendChild(select);
 }
 
-async function loadMonthlyTotal() 
-if (labels.length === 0 || values.length === 0) {
-  console.warn("本番データなし：テストデータで描画します");
-  const testLabels = ['A', 'B', 'C'];
-  const testValues = [100, 200, 150];
-
-  labels.push(...testLabels);
-  values.push(...testValues);
-}
-  {
+async function loadMonthlyTotal() {
   const startMonth = document.getElementById("startMonth").value;
   const endMonth = document.getElementById("endMonth").value;
   if (!startMonth || !endMonth || startMonth > endMonth) {
     alert("正しい月の範囲を選択してください");
     return;
   }
+
   const genrePrefix = selectedPath.join(">");
   const topGenre = selectedPath[0] || "";
   const genreType = topGenre.includes("ダイエット") ? "health" : "food";
@@ -159,11 +151,18 @@ if (labels.length === 0 || values.length === 0) {
     values.push(val);
   }
 
+  // ✅ 仮データで補完
+  if (labels.length === 0 || values.length === 0) {
+    console.warn("データが見つからないため仮データを表示します。");
+    labels.push("テストA", "テストB", "テストC");
+    values.push(100, 200, 300);
+  }
+
   const totalSales = values.reduce((sum, val) => sum + val, 0);
-  const tableData = Object.entries(summary).map(([key, val]) => [
-    key,
-    val.toLocaleString(),
-    totalSales ? ((val / totalSales) * 100).toFixed(2) + "%" : "0.00%"
+  const tableData = labels.map((label, i) => [
+    genrePrefix + ">" + label,
+    values[i].toLocaleString(),
+    totalSales ? ((values[i] / totalSales) * 100).toFixed(2) + "%" : "0.00%"
   ]);
 
   if ($.fn.dataTable.isDataTable("#dataTable")) {
@@ -186,16 +185,18 @@ if (labels.length === 0 || values.length === 0) {
   const ctxBar = document.getElementById("barChart").getContext("2d");
   window.barChart = new Chart(ctxBar, {
     type: 'bar',
-    data: { labels, datasets: [{ label: '売上指数（千円）', data: values, backgroundColor: colors }] },
+    data: {
+      labels: labels,
+      datasets: [{
+        label: '売上指数（千円）',
+        data: values,
+        backgroundColor: colors
+      }]
+    },
     options: {
       indexAxis: 'y',
       plugins: {
-        title: { display: true, text: "ジャンル別 売上（棒グラフ）" },
-        tooltip: {
-          callbacks: {
-            label: ctx => `${labels[ctx.dataIndex]}: ${values[ctx.dataIndex].toLocaleString()} 千円`
-          }
-        }
+        title: { display: true, text: "ジャンル別 売上（棒グラフ）" }
       }
     }
   });
@@ -203,15 +204,16 @@ if (labels.length === 0 || values.length === 0) {
   const ctxPie = document.getElementById("pieChart").getContext("2d");
   window.pieChart = new Chart(ctxPie, {
     type: 'pie',
-    data: { labels, datasets: [{ data: values, backgroundColor: colors }] },
+    data: {
+      labels: labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors
+      }]
+    },
     options: {
       plugins: {
-        title: { display: true, text: "ジャンル構成比（円グラフ）" },
-        tooltip: {
-          callbacks: {
-            label: ctx => `${labels[ctx.dataIndex]}: ${values[ctx.dataIndex].toLocaleString()} 千円`
-          }
-        }
+        title: { display: true, text: "ジャンル構成比（円グラフ）" }
       }
     }
   });
