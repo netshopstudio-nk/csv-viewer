@@ -4,41 +4,39 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ジャンル別 月間合計ビューア</title>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.10.24/css/jquery.dataTables.min.css" />
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+  <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css" />
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-    }
-    canvas {
-      max-width: 100%;
-      margin-top: 30px;
-    }
+    body { font-family: sans-serif; padding: 20px; }
+    h1 { font-size: 24px; margin-bottom: 20px; }
+    select, input[type="month"] { margin: 0 5px 10px 0; }
+    canvas { max-width: 800px; margin-top: 40px; }
   </style>
 </head>
 <body>
   <h1>ジャンル別 月間合計ビューア</h1>
+
   <div>
-    <label>ジャンル階層:</label>
+    ジャンル階層:
     <select id="genre1"></select>
     <select id="genre2"></select>
     <select id="genre3"></select>
     <select id="genre4"></select>
-  </div>
-  <div>
-    <label>開始月:</label>
-    <input type="month" id="startMonth" />
-    <label>終了月:</label>
-    <input type="month" id="endMonth" />
-    <button id="loadData">表示</button>
+    <br />
+    開始月: <input type="month" id="startMonth">
+    終了月: <input type="month" id="endMonth">
+    <button id="loadBtn">表示</button>
   </div>
 
-  <table id="dataTable" class="display">
+  <table id="resultTable" class="display">
     <thead>
-      <tr><th>ジャンル名</th><th>売上指数（千円）</th><th>シェア</th></tr>
+      <tr>
+        <th>ジャンル名</th>
+        <th>売上指数（千円）</th>
+        <th>シェア</th>
+      </tr>
     </thead>
     <tbody></tbody>
   </table>
@@ -47,94 +45,108 @@
   <canvas id="pieChart"></canvas>
 
   <script>
-    const files = {
-      "202405": "food_202405.csv",
-      "202406": "food_202406.csv",
-      "202409": "food_202409.csv",
-      "202306": "health_202306.csv"
+    const csvFolder = 'data';
+
+    const loadCSV = async (filepath) => {
+      const response = await fetch(filepath);
+      const text = await response.text();
+      return text;
     };
 
-    function formatMonth(month) {
-      return month.replace("-", "");
-    }
+    const parseCSV = (csvText) => {
+      const lines = csvText.trim().split('\n');
+      const headers = lines[0].split(',');
+      return lines.slice(1).map(line => {
+        const values = line.split(',');
+        const entry = {};
+        headers.forEach((h, i) => {
+          entry[h.trim()] = values[i].trim();
+        });
+        return entry;
+      });
+    };
 
-    function getGenrePath() {
-      const levels = ["#genre1", "#genre2", "#genre3", "#genre4"];
-      return levels.map(sel => $(sel).val()).filter(v => v).join(">");
-    }
+    const formatShare = (value) => (value * 100).toFixed(2) + '%';
 
-    let barChart, pieChart;
+    const updateTableAndCharts = (data) => {
+      const tbody = $('#resultTable tbody');
+      tbody.empty();
+      const totalSales = data.reduce((sum, row) => sum + Number(row['売上指数（千円）'] || 0), 0);
 
-    function drawCharts(labels, values) {
-      const backgroundColors = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ab"];
+      const chartLabels = [];
+      const chartData = [];
 
-      if (barChart) barChart.destroy();
-      if (pieChart) pieChart.destroy();
+      data.forEach(row => {
+        const sales = Number(row['売上指数（千円）'] || 0);
+        const share = sales / totalSales;
+        chartLabels.push(row['ジャンル名']);
+        chartData.push(sales);
+        tbody.append(`
+          <tr>
+            <td>${row['ジャンル名']}</td>
+            <td>${sales.toLocaleString()}</td>
+            <td>${formatShare(share)}</td>
+          </tr>
+        `);
+      });
 
-      barChart = new Chart(document.getElementById("barChart"), {
-        type: "bar",
+      $('#resultTable').DataTable();
+
+      const ctxBar = document.getElementById('barChart').getContext('2d');
+      const ctxPie = document.getElementById('pieChart').getContext('2d');
+
+      if (window.bar) window.bar.destroy();
+      if (window.pie) window.pie.destroy();
+
+      window.bar = new Chart(ctxBar, {
+        type: 'bar',
         data: {
-          labels: labels,
-          datasets: [{ label: "売上指数（千円）", data: values, backgroundColor: backgroundColors }]
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true } }
+          labels: chartLabels,
+          datasets: [{ label: '売上指数（千円）', data: chartData }]
         }
       });
 
-      pieChart = new Chart(document.getElementById("pieChart"), {
-        type: "pie",
+      window.pie = new Chart(ctxPie, {
+        type: 'pie',
         data: {
-          labels: labels,
-          datasets: [{ data: values, backgroundColor: backgroundColors }]
-        },
-        options: { responsive: true }
-      });
-    }
-
-    async function loadAndDisplay() {
-      const start = formatMonth($("#startMonth").val());
-      const end = formatMonth($("#endMonth").val());
-      const genre = getGenrePath();
-      const tableData = {};
-
-      for (const ym in files) {
-        if (ym >= start && ym <= end) {
-          const response = await fetch(`data/${files[ym]}`);
-          const text = await response.text();
-          const rows = text.trim().split("\n").slice(1);
-
-          for (const row of rows) {
-            const [name, salesStr] = row.split(",");
-            if (name.startsWith(genre)) {
-              if (!tableData[name]) tableData[name] = 0;
-              tableData[name] += parseFloat(salesStr);
-            }
-          }
+          labels: chartLabels,
+          datasets: [{ data: chartData }]
         }
-      }
+      });
+    };
 
-      const labels = Object.keys(tableData);
-      const values = Object.values(tableData);
-      const total = values.reduce((a, b) => a + b, 0);
+    $('#loadBtn').on('click', async () => {
+      const start = document.getElementById('startMonth').value.replace('-', '');
+      const end = document.getElementById('endMonth').value.replace('-', '');
 
-      const tbody = $("#dataTable tbody").empty();
-      labels.forEach((label, i) => {
-        const share = total ? (values[i] / total * 100).toFixed(2) : "0.00";
-        tbody.append(`<tr><td>${label}</td><td>${values[i].toLocaleString()}</td><td>${share}%</td></tr>`);
+      const files = await fetch(csvFolder).then(res => res.text());
+      const fileList = Array.from(files.matchAll(/href="(.*?\.csv)"/g)).map(m => m[1]);
+      const filtered = fileList.filter(f => {
+        const match = f.match(/_(\d{6})\.csv/);
+        if (!match) return false;
+        const yyyymm = match[1];
+        return yyyymm >= start && yyyymm <= end;
       });
 
-      if ($.fn.DataTable.isDataTable("#dataTable")) {
-        $('#dataTable').DataTable().clear().destroy();
+      const allData = [];
+      for (const file of filtered) {
+        const text = await loadCSV(`${csvFolder}/${file}`);
+        const rows = parseCSV(text);
+        allData.push(...rows);
       }
-      $('#dataTable').DataTable();
 
-      drawCharts(labels, values);
-    }
+      updateTableAndCharts(allData);
+    });
 
-    $("#loadData").on("click", loadAndDisplay);
+    // ダミー選択肢
+    ['genre1','genre2','genre3','genre4'].forEach(id => {
+      const sel = document.getElementById(id);
+      ['選択してください','食品','健康','飲料','サプリ'].forEach(opt => {
+        const o = document.createElement('option');
+        o.value = o.text = opt;
+        sel.appendChild(o);
+      });
+    });
   </script>
 </body>
 </html>
