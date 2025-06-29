@@ -151,13 +151,6 @@ async function loadMonthlyTotal() {
     values.push(val);
   }
 
-  // ✅ 仮データで補完
-  if (labels.length === 0 || values.length === 0) {
-    console.warn("データが見つからないため仮データを表示します。");
-    labels.push("テストA", "テストB", "テストC");
-    values.push(100, 200, 300);
-  }
-
   const totalSales = values.reduce((sum, val) => sum + val, 0);
   const tableData = labels.map((label, i) => [
     genrePrefix + ">" + label,
