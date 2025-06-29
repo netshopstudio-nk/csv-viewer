@@ -1,210 +1,140 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8"/>
-  <title>ジャンル別CSVビューア（月間合計）</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ジャンル別 月間合計ビューア</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-  <link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet"/>
+  <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css" />
   <style>
-    body { font-family: sans-serif; padding: 20px; max-width: 1000px; margin: auto; }
-    h2 { margin-bottom: 10px; }
-    .controls { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
-    .control-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-    select, button { font-size: 1rem; padding: 5px 10px; }
-    #dataTable { border-collapse: collapse; width: 100%; margin-top: 20px; }
-    #dataTable thead { background-color: #f0f0f0; }
-    #dataTable tbody tr:nth-child(even) { background-color: #fafafa; }
-    #dataTable tbody tr:hover { background-color: #f1f8ff; }
-    #chartContainer { margin-top: 40px; }
-    canvas { max-width: 100%; margin: 20px 0; }
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+    canvas {
+      max-width: 100%;
+      margin-top: 30px;
+    }
   </style>
 </head>
 <body>
-<h2>ジャンル別 月間合計ビューア</h2>
-<p>ジャンル階層を選択し、指定した期間の売上合計を表示します。</p>
-
-<div class="controls">
-  <div class="control-row" id="genreSelects"></div>
-  <div class="control-row">
-    <label>開始月: <select id="startMonth"></select></label>
-    <label>終了月: <select id="endMonth"></select></label>
-    <button onclick="loadMonthlyTotal()">表示</button>
+  <h1>ジャンル別 月間合計ビューア</h1>
+  <div>
+    <label>ジャンル階層:</label>
+    <select id="genre1"></select>
+    <select id="genre2"></select>
+    <select id="genre3"></select>
+    <select id="genre4"></select>
   </div>
-</div>
+  <div>
+    <label>開始月:</label>
+    <input type="month" id="startMonth" />
+    <label>終了月:</label>
+    <input type="month" id="endMonth" />
+    <button id="loadData">表示</button>
+  </div>
 
-<table id="dataTable"></table>
+  <table id="dataTable" class="display">
+    <thead>
+      <tr><th>ジャンル名</th><th>売上指数（千円）</th><th>シェア</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-<div id="chartContainer">
   <canvas id="barChart"></canvas>
   <canvas id="pieChart"></canvas>
-</div>
 
-<script>
-let genreTree = {};
-let selectedPath = [];
+  <script>
+    const files = {
+      "202405": "food_202405.csv",
+      "202406": "food_202406.csv",
+      "202409": "food_202409.csv",
+      "202306": "health_202306.csv"
+    };
 
-fetch('genre_tree_merged.json')
-  .then(res => res.json())
-  .then(data => {
-    genreTree = data;
-    renderSelectUI(genreTree, document.getElementById("genreSelects"));
-  });
-
-function renderSelectUI(tree, container, path = []) {
-  if (container.children.length > path.length) {
-    container.innerHTML = '';
-    renderSelectUI(genreTree, container);
-    return;
-  }
-  const select = document.createElement("select");
-  select.innerHTML = `<option value="">選択してください</option>`;
-  for (const key in tree) {
-    const hasChildren = Object.keys(tree[key]).length > 0;
-    const option = document.createElement("option");
-    option.value = key;
-    option.textContent = hasChildren ? `${key} ▸` : key;
-    select.appendChild(option);
-  }
-  select.onchange = () => {
-    while (container.children.length > path.length + 1) {
-      container.removeChild(container.lastChild);
+    function formatMonth(month) {
+      return month.replace("-", "");
     }
-    const selected = select.value.replace(/ ▸$/, '');
-    selectedPath = [...path, selected];
-    if (selected && tree[selected]) {
-      renderSelectUI(tree[selected], container, selectedPath);
+
+    function getGenrePath() {
+      const levels = ["#genre1", "#genre2", "#genre3", "#genre4"];
+      return levels.map(sel => $(sel).val()).filter(v => v).join(">");
     }
-  };
-  container.appendChild(select);
-}
 
-async function loadMonthlyTotal() {
-  const startMonth = document.getElementById("startMonth").value;
-  const endMonth = document.getElementById("endMonth").value;
-  if (!startMonth || !endMonth || startMonth > endMonth) {
-    alert("正しい月の範囲を選択してください");
-    return;
-  }
+    let barChart, pieChart;
 
-  const genrePrefix = selectedPath.join(">");
-  const topGenre = selectedPath[0] || "";
-  const genreType = topGenre.includes("ダイエット") ? "health" : "food";
+    function drawCharts(labels, values) {
+      const backgroundColors = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ab"];
 
-  const months = [];
-  const [sy, sm] = startMonth.split("-").map(Number);
-  const [ey, em] = endMonth.split("-").map(Number);
-  for (let y = sy; y <= ey; y++) {
-    for (let m = 1; m <= 12; m++) {
-      if ((y === sy && m < sm) || (y === ey && m > em)) continue;
-      months.push(y + ("0" + m).slice(-2));
+      if (barChart) barChart.destroy();
+      if (pieChart) pieChart.destroy();
+
+      barChart = new Chart(document.getElementById("barChart"), {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [{ label: "売上指数（千円）", data: values, backgroundColor: backgroundColors }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+
+      pieChart = new Chart(document.getElementById("pieChart"), {
+        type: "pie",
+        data: {
+          labels: labels,
+          datasets: [{ data: values, backgroundColor: backgroundColors }]
+        },
+        options: { responsive: true }
+      });
     }
-  }
 
-  const summary = {};
-  for (const month of months) {
-    const filename = `data/${genreType}_${month}.csv`;
-    try {
-      const res = await fetch(filename);
-      if (!res.ok) continue;
-      const text = await res.text();
-      const rows = text.trim().split("\n").slice(1);
-      for (const row of rows) {
-        const [name, salesStr, shareStr] = row.split(",");
-        if (!name.startsWith(genrePrefix)) continue;
-        const key = name.trim();
-        const sales = parseFloat(salesStr || 0);
-        const share = parseFloat(shareStr || 0);
-        if (!summary[key]) summary[key] = { sales: 0, share: 0 };
-        summary[key].sales += sales;
-        summary[key].share += share;
-      }
-    } catch (e) {
-      console.error("読み込みエラー:", filename);
-    }
-  }
+    async function loadAndDisplay() {
+      const start = formatMonth($("#startMonth").val());
+      const end = formatMonth($("#endMonth").val());
+      const genre = getGenrePath();
+      const tableData = {};
 
-  const table = document.getElementById("dataTable");
-  table.innerHTML = "<thead><tr><th>ジャンル名</th><th>売上指数（千円）</th><th>シェア</th></tr></thead><tbody>";
-  const labels = [], values = [], shares = [];
-  for (const [key, data] of Object.entries(summary)) {
-    const shareText = data.share.toFixed(2) + "%";
-    table.innerHTML += `<tr><td>${key}</td><td>${data.sales.toLocaleString()}</td><td>${shareText}</td></tr>`;
-    labels.push(key.split(">").pop());
-    values.push(data.sales);
-    shares.push(shareText);
-  }
-  table.innerHTML += "</tbody>";
-  if ($.fn.dataTable.isDataTable("#dataTable")) $('#dataTable').DataTable().destroy();
-  $('#dataTable').DataTable();
+      for (const ym in files) {
+        if (ym >= start && ym <= end) {
+          const response = await fetch(`data/${files[ym]}`);
+          const text = await response.text();
+          const rows = text.trim().split("\n").slice(1);
 
-  if (window.barChart) window.barChart.destroy();
-  if (window.pieChart) window.pieChart.destroy();
-  const colors = labels.map((_, i) => `hsl(${i * 45 % 360}, 60%, 60%)`);
-
-  const ctxBar = document.getElementById("barChart").getContext("2d");
-  window.barChart = new Chart(ctxBar, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: '売上指数（千円）',
-        data: values,
-        backgroundColor: colors
-      }]
-    },
-    options: {
-      indexAxis: 'y',
-      plugins: {
-        title: { display: true, text: "ジャンル別 売上（棒グラフ）" },
-        tooltip: {
-          callbacks: {
-            label: ctx => `${ctx.label}: ${values[ctx.dataIndex].toLocaleString()} 千円（${shares[ctx.dataIndex]}）`
+          for (const row of rows) {
+            const [name, salesStr] = row.split(",");
+            if (name.startsWith(genre)) {
+              if (!tableData[name]) tableData[name] = 0;
+              tableData[name] += parseFloat(salesStr);
+            }
           }
         }
       }
-    }
-  });
 
-  const ctxPie = document.getElementById("pieChart").getContext("2d");
-  window.pieChart = new Chart(ctxPie, {
-    type: 'pie',
-    data: {
-      labels,
-      datasets: [{
-        data: values,
-        backgroundColor: colors
-      }]
-    },
-    options: {
-      plugins: {
-        title: { display: true, text: "ジャンル構成比（円グラフ）" },
-        tooltip: {
-          callbacks: {
-            label: ctx => `${ctx.label}: ${values[ctx.dataIndex].toLocaleString()} 千円（${shares[ctx.dataIndex]}）`
-          }
-        }
-      }
-    }
-  });
-}
+      const labels = Object.keys(tableData);
+      const values = Object.values(tableData);
+      const total = values.reduce((a, b) => a + b, 0);
 
-document.addEventListener("DOMContentLoaded", () => {
-  const start = document.getElementById("startMonth");
-  const end = document.getElementById("endMonth");
-  for (let y = 2022; y <= 2025; y++) {
-    for (let m = 1; m <= 12; m++) {
-      const ym = `${y}-${("0" + m).slice(-2)}`;
-      if (ym >= "2022-05" && ym <= "2025-12") {
-        start.innerHTML += `<option value="${ym}">${ym}</option>`;
-        end.innerHTML += `<option value="${ym}">${ym}</option>`;
+      const tbody = $("#dataTable tbody").empty();
+      labels.forEach((label, i) => {
+        const share = total ? (values[i] / total * 100).toFixed(2) : "0.00";
+        tbody.append(`<tr><td>${label}</td><td>${values[i].toLocaleString()}</td><td>${share}%</td></tr>`);
+      });
+
+      if ($.fn.DataTable.isDataTable("#dataTable")) {
+        $('#dataTable').DataTable().clear().destroy();
       }
+      $('#dataTable').DataTable();
+
+      drawCharts(labels, values);
     }
-  }
-  start.value = "2025-04";
-  end.value = "2025-05";
-});
-</script>
+
+    $("#loadData").on("click", loadAndDisplay);
+  </script>
 </body>
 </html>
