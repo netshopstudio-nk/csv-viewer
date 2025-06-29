@@ -59,7 +59,13 @@
   </div>
 </div>
 
-<table id="dataTable"></table>
+<table id="dataTable">
+  <thead>
+    <tr><th>ジャンル名</th><th>売上指数（千円）</th></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
 <div id="chartContainer">
   <canvas id="barChart"></canvas>
   <canvas id="pieChart"></canvas>
@@ -111,6 +117,7 @@ async function loadMonthlyTotal() {
     alert("正しい月の範囲を選択してください");
     return;
   }
+
   const genrePrefix = selectedPath.join(">");
   const topGenre = selectedPath[0] || "";
   const genreType = topGenre.includes("ダイエット") ? "health" : "food";
@@ -134,16 +141,12 @@ async function loadMonthlyTotal() {
       const text = await res.text();
       const rows = text.trim().split("\n").slice(1);
       for (const row of rows) {
-        const [name, salesStr, shareStr, rankStr] = row.split(",");
+        const [name, salesStr] = row.split(",");
         if (!name.startsWith(genrePrefix)) continue;
         const key = name.trim();
         const sales = parseFloat(salesStr || 0);
-        const share = parseFloat(shareStr || 0);
-        const rank = parseInt(rankStr || 0);
-        if (!summary[key]) summary[key] = { sales: 0, share: 0, rank: 0 };
+        if (!summary[key]) summary[key] = { sales: 0 };
         summary[key].sales += sales;
-        summary[key].share += share;
-        summary[key].rank += rank;
       }
     } catch (e) {
       console.error("読み込みエラー:", filename);
@@ -151,14 +154,17 @@ async function loadMonthlyTotal() {
   }
 
   const table = document.getElementById("dataTable");
-  table.innerHTML = "<thead><tr><th>ジャンル名</th><th>売上指数（千円）</th><th>シェア</th><th>ランク入り数</th></tr></thead><tbody>";
+  const tbody = table.querySelector("tbody");
+  tbody.innerHTML = "";
   const labels = [], values = [];
   for (const [key, data] of Object.entries(summary)) {
-    table.innerHTML += `<tr><td>${key}</td><td>${data.sales.toFixed(0)}</td><td>${data.share.toFixed(2)}%</td><td>${data.rank}</td></tr>`;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${key}</td><td>${data.sales.toFixed(0)}</td>`;
+    tbody.appendChild(tr);
     labels.push(key.split(">").pop());
     values.push(data.sales);
   }
-  table.innerHTML += "</tbody>";
+
   if ($.fn.dataTable.isDataTable("#dataTable")) $('#dataTable').DataTable().destroy();
   $('#dataTable').DataTable();
 
