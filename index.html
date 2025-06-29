@@ -102,7 +102,16 @@ function renderSelectUI(tree, container, path = []) {
   container.appendChild(select);
 }
 
-async function loadMonthlyTotal() {
+async function loadMonthlyTotal() 
+if (labels.length === 0 || values.length === 0) {
+  console.warn("本番データなし：テストデータで描画します");
+  const testLabels = ['A', 'B', 'C'];
+  const testValues = [100, 200, 150];
+
+  labels.push(...testLabels);
+  values.push(...testValues);
+}
+  {
   const startMonth = document.getElementById("startMonth").value;
   const endMonth = document.getElementById("endMonth").value;
   if (!startMonth || !endMonth || startMonth > endMonth) {
