@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8"/>
   <title>ジャンル別CSVビューア（月間合計）</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-  <link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet"/>
   <style>
     body { font-family: sans-serif; padding: 20px; max-width: 1000px; margin: auto; }
     h2 { margin-bottom: 10px; }
@@ -51,11 +50,6 @@
     </label>
     <button onclick="loadMonthlyTotal()">表示</button>
   </div>
-  <div class="control-row">
-    <button onclick="exportPDF()">PDF出力</button>
-    <button onclick="saveChartImage('barChart', 'bar')">棒グラフ画像保存</button>
-    <button onclick="saveChartImage('pieChart', 'pie')">円グラフ画像保存</button>
-  </div>
 </div>
 
 <table id="dataTable" class="display" style="width:100%">
@@ -68,6 +62,7 @@
 <div id="chartContainer">
   <canvas id="barChart"></canvas>
   <canvas id="pieChart"></canvas>
+  <button id="downloadPDF">PDFとして保存</button>
 </div>
 
 <script>
@@ -178,8 +173,8 @@ async function loadMonthlyTotal() {
     });
   }
 
-  if (window.barChart) window.barChart.destroy();
-  if (window.pieChart) window.pieChart.destroy();
+  if (window.barChart && typeof window.barChart.destroy === "function") window.barChart.destroy();
+  if (window.pieChart && typeof window.pieChart.destroy === "function") window.pieChart.destroy();
 
   const colors = labels.map((_, i) => `hsl(${i * 30 % 360}, 60%, 60%)`);
 
@@ -188,17 +183,11 @@ async function loadMonthlyTotal() {
     type: 'bar',
     data: {
       labels: labels,
-      datasets: [{
-        label: '売上指数（千円）',
-        data: values,
-        backgroundColor: colors
-      }]
+      datasets: [{ label: '売上指数（千円）', data: values, backgroundColor: colors }]
     },
     options: {
       indexAxis: 'y',
-      plugins: {
-        title: { display: true, text: "ジャンル別 売上（棒グラフ）" }
-      }
+      plugins: { title: { display: true, text: "ジャンル別 売上（棒グラフ）" } }
     }
   });
 
@@ -207,55 +196,38 @@ async function loadMonthlyTotal() {
     type: 'pie',
     data: {
       labels: labels,
-      datasets: [{
-        data: values,
-        backgroundColor: colors
-      }]
+      datasets: [{ data: values, backgroundColor: colors }]
     },
     options: {
-      plugins: {
-        title: { display: true, text: "ジャンル構成比（円グラフ）" }
-      }
+      plugins: { title: { display: true, text: "ジャンル構成比（円グラフ）" } }
     }
   });
 }
 
-function exportPDF() {
+document.getElementById("downloadPDF").addEventListener("click", () => {
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-  const genre = selectedPath[selectedPath.length - 1] || "未選択";
-  const startMonth = document.getElementById("startMonth").value;
-  const endMonth = document.getElementById("endMonth").value;
-  const filename = `${genre}_${startMonth}_${endMonth}.pdf`;
-
-  doc.setFontSize(14);
-  doc.text(`ジャンル別集計：${genre}`, 40, 30);
-
-  doc.autoTable({ html: '#dataTable', startY: 50 });
-
+  const pdf = new jsPDF();
   const barCanvas = document.getElementById("barChart");
-  const barImg = barCanvas.toDataURL("image/png");
-  doc.addPage();
-  doc.addImage(barImg, 'PNG', 40, 40, 500, 300);
-
   const pieCanvas = document.getElementById("pieChart");
+
+  const barImg = barCanvas.toDataURL("image/png");
   const pieImg = pieCanvas.toDataURL("image/png");
-  doc.addPage();
-  doc.addImage(pieImg, 'PNG', 100, 40, 400, 400);
 
-  doc.save(filename);
-}
+  pdf.setFont("Helvetica");
+  pdf.setFontSize(12);
+  pdf.text("ジャンル別売上グラフ", 10, 10);
+  pdf.addImage(barImg, "PNG", 10, 20, 180, 80);
+  pdf.addPage();
+  pdf.text("ジャンル別構成比グラフ", 10, 10);
+  pdf.addImage(pieImg, "PNG", 30, 20, 150, 150);
 
-function saveChartImage(id, label) {
-  const canvas = document.getElementById(id);
-  const link = document.createElement("a");
-  const genre = selectedPath[selectedPath.length - 1] || "ジャンル";
-  const start = document.getElementById("startMonth").value;
-  const end = document.getElementById("endMonth").value;
-  link.download = `${genre}_${start}_${end}_${label}.png`;
-  link.href = canvas.toDataURL();
-  link.click();
-}
+  const lastGenre = selectedPath[selectedPath.length - 1] || "ジャンル";
+  const startMonth = document.getElementById("startMonth").value || "開始月";
+  const endMonth = document.getElementById("endMonth").value || "終了月";
+  const fileName = `${lastGenre}_${startMonth}_${endMonth}.pdf`;
+
+  pdf.save(fileName);
+});
 
 document.addEventListener("DOMContentLoaded", () => {
   const start = document.getElementById("startMonth");
