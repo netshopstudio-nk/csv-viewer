@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <title>ジャンル別CSVビューア（月間合計）</title>
-  	<script src="./chart.min.js">
+  <script src="./chart.min.js">
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
   <link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet"/>
@@ -178,8 +178,12 @@ async function loadMonthlyTotal() {
     });
   }
 
-  if (window.barChart) window.barChart.destroy();
-  if (window.pieChart) window.pieChart.destroy();
+if (window.barChart && typeof window.barChart.destroy === "function") {
+  window.barChart.destroy();
+}
+if (window.pieChart && typeof window.pieChart.destroy === "function") {
+  window.pieChart.destroy();
+}
   const colors = labels.map((_, i) => `hsl(${i * 30 % 360}, 60%, 60%)`);
 
   const ctxBar = document.getElementById("barChart").getContext("2d");
