@@ -60,7 +60,7 @@
         const values = line.split(',');
         const entry = {};
         headers.forEach((h, i) => {
-          entry[h.trim()] = values[i].trim();
+          entry[h.trim()] = values[i] ? values[i].trim() : '';
         });
         return entry;
       });
@@ -71,13 +71,15 @@
     const updateTableAndCharts = (data) => {
       const tbody = $('#resultTable tbody');
       tbody.empty();
-      const totalSales = data.reduce((sum, row) => sum + Number(row['売上指数（千円）'] || 0), 0);
+
+      const filteredData = data.filter(row => row['売上指数（千円）'] && !isNaN(row['売上指数（千円）']));
+      const totalSales = filteredData.reduce((sum, row) => sum + Number(row['売上指数（千円）']), 0);
 
       const chartLabels = [];
       const chartData = [];
 
-      data.forEach(row => {
-        const sales = Number(row['売上指数（千円）'] || 0);
+      filteredData.forEach(row => {
+        const sales = Number(row['売上指数（千円）']);
         const share = sales / totalSales;
         chartLabels.push(row['ジャンル名']);
         chartData.push(sales);
@@ -90,6 +92,9 @@
         `);
       });
 
+      if ($.fn.DataTable.isDataTable('#resultTable')) {
+        $('#resultTable').DataTable().destroy();
+      }
       $('#resultTable').DataTable();
 
       const ctxBar = document.getElementById('barChart').getContext('2d');
@@ -102,7 +107,11 @@
         type: 'bar',
         data: {
           labels: chartLabels,
-          datasets: [{ label: '売上指数（千円）', data: chartData }]
+          datasets: [{ label: '売上指数（千円）', data: chartData, backgroundColor: 'rgba(75, 192, 192, 0.6)' }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false }, title: { display: true, text: '売上指数 棒グラフ' } }
         }
       });
 
@@ -110,7 +119,11 @@
         type: 'pie',
         data: {
           labels: chartLabels,
-          datasets: [{ data: chartData }]
+          datasets: [{ data: chartData, backgroundColor: chartLabels.map((_, i) => `hsl(${i * 40}, 70%, 70%)`) }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'right' }, title: { display: true, text: '売上シェア 円グラフ' } }
         }
       });
     };
@@ -118,6 +131,8 @@
     $('#loadBtn').on('click', async () => {
       const start = document.getElementById('startMonth').value.replace('-', '');
       const end = document.getElementById('endMonth').value.replace('-', '');
+
+      if (!start || !end) return;
 
       const files = await fetch(csvFolder).then(res => res.text());
       const fileList = Array.from(files.matchAll(/href="(.*?\.csv)"/g)).map(m => m[1]);
@@ -138,7 +153,7 @@
       updateTableAndCharts(allData);
     });
 
-    // ダミー選択肢
+    // ジャンル選択肢（仮）
     ['genre1','genre2','genre3','genre4'].forEach(id => {
       const sel = document.getElementById(id);
       ['選択してください','食品','健康','飲料','サプリ'].forEach(opt => {
