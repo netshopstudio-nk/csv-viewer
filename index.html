@@ -34,18 +34,14 @@
     #dataTable thead { background-color: #f0f0f0; }
     #dataTable tbody tr:nth-child(even) { background-color: #fafafa; }
     #dataTable tbody tr:hover { background-color: #f1f8ff; }
-    #chartContainer {
-      margin-top: 40px;
-    }
-    canvas {
-      max-width: 100%;
-      margin: 20px 0;
-    }
+    #chartContainer { margin-top: 40px; }
+    canvas { max-width: 100%; margin: 20px 0; }
   </style>
 </head>
 <body>
 <h2>ジャンル別 月間合計ビューア</h2>
 <p>ジャンル階層を選択し、指定した期間の売上合計を表示します。</p>
+
 <div class="controls">
   <div class="control-row" id="genreSelects"></div>
   <div class="control-row">
@@ -59,13 +55,7 @@
   </div>
 </div>
 
-<table id="dataTable">
-  <thead>
-    <tr><th>ジャンル名</th><th>売上指数（千円）</th></tr>
-  </thead>
-  <tbody></tbody>
-</table>
-
+<table id="dataTable"></table>
 <div id="chartContainer">
   <canvas id="barChart"></canvas>
   <canvas id="pieChart"></canvas>
@@ -117,8 +107,7 @@ async function loadMonthlyTotal() {
     alert("正しい月の範囲を選択してください");
     return;
   }
-
-  const genrePrefix = selectedPath.join(">");
+  const genrePrefix = selectedPath.join(">").trim();
   const topGenre = selectedPath[0] || "";
   const genreType = topGenre.includes("ダイエット") ? "health" : "food";
 
@@ -141,12 +130,16 @@ async function loadMonthlyTotal() {
       const text = await res.text();
       const rows = text.trim().split("\n").slice(1);
       for (const row of rows) {
-        const [name, salesStr] = row.split(",");
-        if (!name.startsWith(genrePrefix)) continue;
+        const [name, salesStr, shareStr, rankStr] = row.split(",");
+        if (!name.trim().startsWith(genrePrefix)) continue;
         const key = name.trim();
         const sales = parseFloat(salesStr || 0);
-        if (!summary[key]) summary[key] = { sales: 0 };
+        const share = parseFloat(shareStr || 0);
+        const rank = parseInt(rankStr || 0);
+        if (!summary[key]) summary[key] = { sales: 0, share: 0, rank: 0 };
         summary[key].sales += sales;
+        summary[key].share += share;
+        summary[key].rank += rank;
       }
     } catch (e) {
       console.error("読み込みエラー:", filename);
@@ -154,18 +147,18 @@ async function loadMonthlyTotal() {
   }
 
   const table = document.getElementById("dataTable");
-  const tbody = table.querySelector("tbody");
-  tbody.innerHTML = "";
+  if ($.fn.dataTable.isDataTable("#dataTable")) {
+    $('#dataTable').DataTable().clear().destroy();
+  }
+
+  table.innerHTML = "<thead><tr><th>ジャンル名</th><th>売上指数（千円）</th><th>シェア</th><th>ランク入り数</th></tr></thead><tbody>";
   const labels = [], values = [];
   for (const [key, data] of Object.entries(summary)) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${key}</td><td>${data.sales.toFixed(0)}</td>`;
-    tbody.appendChild(tr);
+    table.innerHTML += `<tr><td>${key}</td><td>${data.sales.toFixed(0)}</td><td>${data.share.toFixed(2)}%</td><td>${data.rank}</td></tr>`;
     labels.push(key.split(">").pop());
     values.push(data.sales);
   }
-
-  if ($.fn.dataTable.isDataTable("#dataTable")) $('#dataTable').DataTable().destroy();
+  table.innerHTML += "</tbody>";
   $('#dataTable').DataTable();
 
   if (window.barChart) window.barChart.destroy();
