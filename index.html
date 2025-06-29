@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <title>ジャンル別CSVビューア（月間合計）</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
   <link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet"/>
@@ -165,6 +165,8 @@ async function loadMonthlyTotal() {
     values.push(data.sales);
   }
 
+  console.log("🟢 グラフ描画データ", labels, values);
+
   if ($.fn.dataTable.isDataTable("#dataTable")) $('#dataTable').DataTable().destroy();
   $('#dataTable').DataTable();
 
@@ -173,6 +175,8 @@ async function loadMonthlyTotal() {
   const colors = labels.map((_, i) => `hsl(${i * 30 % 360}, 60%, 60%)`);
 
   const ctxBar = document.getElementById("barChart").getContext("2d");
+  const ctxPie = document.getElementById("pieChart").getContext("2d");
+
   window.barChart = new Chart(ctxBar, {
     type: 'bar',
     data: { labels, datasets: [{ label: '売上指数（千円）', data: values, backgroundColor: colors }] },
@@ -189,7 +193,6 @@ async function loadMonthlyTotal() {
     }
   });
 
-  const ctxPie = document.getElementById("pieChart").getContext("2d");
   window.pieChart = new Chart(ctxPie, {
     type: 'pie',
     data: { labels, datasets: [{ data: values, backgroundColor: colors }] },
