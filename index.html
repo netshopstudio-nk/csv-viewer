@@ -83,12 +83,12 @@ function renderSelectUI(tree, container, path = []) {
     return;
   }
   const select = document.createElement("select");
-  select.innerHTML = `<option value="">選択してください</option>`;
+  select.innerHTML = <option value="">選択してください</option>;
   for (const key in tree) {
     const hasChildren = Object.keys(tree[key]).length > 0;
     const option = document.createElement("option");
     option.value = key;
-    option.textContent = hasChildren ? `${key} ▸` : key;
+    option.textContent = hasChildren ? ${key} ▸ : key;
     select.appendChild(option);
   }
   select.onchange = () => {
@@ -127,7 +127,7 @@ async function loadMonthlyTotal() {
 
   const summary = {};
   for (const month of months) {
-    const filename = `data/${genreType}_${month}.csv`;
+    const filename = data/${genreType}_${month}.csv;
     try {
       const res = await fetch(filename);
       if (!res.ok) continue;
@@ -154,7 +154,7 @@ async function loadMonthlyTotal() {
   table.innerHTML = "<thead><tr><th>ジャンル名</th><th>売上指数（千円）</th><th>シェア</th><th>ランク入り数</th></tr></thead><tbody>";
   const labels = [], values = [];
   for (const [key, data] of Object.entries(summary)) {
-    table.innerHTML += `<tr><td>${key}</td><td>${data.sales.toFixed(0)}</td><td>${data.share.toFixed(2)}%</td><td>${data.rank}</td></tr>`;
+    table.innerHTML += <tr><td>${key}</td><td>${data.sales.toFixed(0)}</td><td>${data.share.toFixed(2)}%</td><td>${data.rank}</td></tr>;
     labels.push(key.split(">").pop());
     values.push(data.sales);
   }
@@ -164,7 +164,7 @@ async function loadMonthlyTotal() {
 
   if (window.barChart) window.barChart.destroy();
   if (window.pieChart) window.pieChart.destroy();
-  const colors = labels.map((_, i) => `hsl(${i * 30 % 360}, 60%, 60%)`);
+  const colors = labels.map((_, i) => hsl(${i * 30 % 360}, 60%, 60%));
 
   const ctxBar = document.getElementById("barChart").getContext("2d");
   window.barChart = new Chart(ctxBar, {
@@ -176,7 +176,7 @@ async function loadMonthlyTotal() {
         title: { display: true, text: "ジャンル別 売上（棒グラフ）" },
         tooltip: {
           callbacks: {
-            label: ctx => `${labels[ctx.dataIndex]}: ${values[ctx.dataIndex].toLocaleString()} 千円`
+            label: ctx => ${labels[ctx.dataIndex]}: ${values[ctx.dataIndex].toLocaleString()} 千円
           }
         }
       }
@@ -192,7 +192,7 @@ async function loadMonthlyTotal() {
         title: { display: true, text: "ジャンル構成比（円グラフ）" },
         tooltip: {
           callbacks: {
-            label: ctx => `${labels[ctx.dataIndex]}: ${values[ctx.dataIndex].toLocaleString()} 千円`
+            label: ctx => ${labels[ctx.dataIndex]}: ${values[ctx.dataIndex].toLocaleString()} 千円
           }
         }
       }
@@ -205,10 +205,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const end = document.getElementById("endMonth");
   for (let y = 2022; y <= 2025; y++) {
     for (let m = 1; m <= 12; m++) {
-      const ym = `${y}-${("0" + m).slice(-2)}`;
+      const ym = ${y}-${("0" + m).slice(-2)};
       if (ym >= "2022-05" && ym <= "2025-12") {
-        start.innerHTML += `<option value="${ym}">${ym}</option>`;
-        end.innerHTML += `<option value="${ym}">${ym}</option>`;
+        start.innerHTML += <option value="${ym}">${ym}</option>;
+        end.innerHTML += <option value="${ym}">${ym}</option>;
       }
     }
   }
