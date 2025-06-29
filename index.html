@@ -111,7 +111,7 @@ async function loadMonthlyTotal() {
     alert("正しい月の範囲を選択してください");
     return;
   }
-  const genrePrefix = selectedPath.join(" > ");
+  const genrePrefix = selectedPath.join(">");
   const topGenre = selectedPath[0] || "";
   const genreType = topGenre.includes("ダイエット") ? "health" : "food";
 
@@ -155,7 +155,7 @@ async function loadMonthlyTotal() {
   const labels = [], values = [];
   for (const [key, data] of Object.entries(summary)) {
     table.innerHTML += `<tr><td>${key}</td><td>${data.sales.toFixed(0)}</td><td>${data.share.toFixed(2)}%</td><td>${data.rank}</td></tr>`;
-    labels.push(key.split(" > ").pop());
+    labels.push(key.split(">").pop());
     values.push(data.sales);
   }
   table.innerHTML += "</tbody>";
