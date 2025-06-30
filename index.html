@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <title>ジャンル別CSVビューア（月間合計）</title>
-  <script src="./chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -61,14 +61,14 @@
   <tbody></tbody>
 </table>
 
-<!-- PDF出力ボタンを表の下に配置 -->
-<div style="margin-top: 10px;">
-  <button onclick="downloadPDF()">グラフPDF保存</button>
-</div>
-
 <div id="chartContainer">
   <canvas id="barChart"></canvas>
   <canvas id="pieChart"></canvas>
+</div>
+
+<!-- PDF出力ボタンを表の下に配置 -->
+<div style="margin-top: 10px;">
+  <button onclick="downloadPDF()">グラフPDF保存</button>
 </div>
 
 <script>
@@ -184,41 +184,24 @@ async function loadMonthlyTotal() {
 
   const colors = labels.map((_, i) => `hsl(${i * 30 % 360}, 60%, 60%)`);
 
-  const ctxBar = document.getElementById("barChart").getContext("2d");
-  window.barChart = new Chart(ctxBar, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: '売上指数（千円）',
-        data: values,
-        backgroundColor: colors
-      }]
-    },
-    options: {
-      indexAxis: 'y',
-      plugins: {
-        title: { display: true, text: "ジャンル別 売上（棒グラフ）" }
-      }
-    }
-  });
+  setTimeout(() => {
+    const ctxBar = document.getElementById("barChart").getContext("2d");
+    window.barChart = new Chart(ctxBar, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{ label: '売上指数（千円）', data: values, backgroundColor: colors }]
+      },
+      options: { indexAxis: 'y', plugins: { title: { display: true, text: "ジャンル別 売上（棒グラフ）" } } }
+    });
 
-  const ctxPie = document.getElementById("pieChart").getContext("2d");
-  window.pieChart = new Chart(ctxPie, {
-    type: 'pie',
-    data: {
-      labels,
-      datasets: [{
-        data: values,
-        backgroundColor: colors
-      }]
-    },
-    options: {
-      plugins: {
-        title: { display: true, text: "ジャンル構成比（円グラフ）" }
-      }
-    }
-  });
+    const ctxPie = document.getElementById("pieChart").getContext("2d");
+    window.pieChart = new Chart(ctxPie, {
+      type: 'pie',
+      data: { labels, datasets: [{ data: values, backgroundColor: colors }] },
+      options: { plugins: { title: { display: true, text: "ジャンル構成比（円グラフ）" } } }
+    });
+  }, 100);
 }
 
 async function downloadPDF() {
