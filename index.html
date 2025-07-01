@@ -1,14 +1,12 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="utf-8"/>
   <title>ジャンル別CSVビューア（月間合計）</title>
-  <link rel="icon" href="data:,">
   <script src="./chart.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet"/>
   <style>
     body { font-family: sans-serif; padding: 20px; max-width: 1000px; margin: auto; }
@@ -41,7 +39,6 @@
 <body>
 <h2>ジャンル別 月間合計ビューア</h2>
 <p>ジャンル階層を選択し、指定した期間の売上合計を表示します。</p>
-
 <div class="controls">
   <div class="control-row" id="genreSelects"></div>
   <div class="control-row">
@@ -61,11 +58,6 @@
   </thead>
   <tbody></tbody>
 </table>
-
-<!-- PDF出力ボタンを表の下に配置 -->
-<div style="margin-top: 10px;">
-  <button onclick="downloadPDF()">グラフPDF保存</button>
-</div>
 
 <div id="chartContainer">
   <canvas id="barChart"></canvas>
@@ -122,6 +114,7 @@ async function loadMonthlyTotal() {
   const genrePrefix = selectedPath.join(">");
   const topGenre = selectedPath[0] || "";
   const genreType = topGenre.includes("ダイエット") ? "health" : "food";
+  const depth = selectedPath.length + 1;
 
   const months = [];
   const [sy, sm] = startMonth.split("-").map(Number);
@@ -133,7 +126,9 @@ async function loadMonthlyTotal() {
     }
   }
 
-  const summary = {};
+  const buckets = {};
+  const subCounts = {};
+
   for (const month of months) {
     const filename = `data/${genreType}_${month}.csv`;
     try {
@@ -144,10 +139,18 @@ async function loadMonthlyTotal() {
       for (const row of rows) {
         const [name, salesStr] = row.split(",");
         if (!name.startsWith(genrePrefix)) continue;
-        const key = name.trim();
+        const parts = name.trim().split(">");
+        if (parts.length < depth) continue;
+        const bucketKey = parts.slice(0, depth).join(">");
         const sales = parseFloat(salesStr || 0);
-        if (!summary[key]) summary[key] = 0;
-        summary[key] += sales;
+        if (!buckets[bucketKey]) buckets[bucketKey] = 0;
+        buckets[bucketKey] += sales;
+
+        const childKey = parts.slice(0, depth + 1).join(">");
+        if (parts.length > depth) {
+          if (!subCounts[bucketKey]) subCounts[bucketKey] = new Set();
+          subCounts[bucketKey].add(childKey);
+        }
       }
     } catch (e) {
       console.error("読み込みエラー:", filename);
@@ -155,8 +158,17 @@ async function loadMonthlyTotal() {
   }
 
   const labels = [], values = [];
-  for (const [key, val] of Object.entries(summary)) {
-    labels.push(key.split(">").pop());
+  for (const [key, val] of Object.entries(buckets)) {
+    const parts = key.split(">");
+    const base = key;
+    let label = parts.at(-1);
+    if (label === "その他") {
+      label = `その他（${parts.at(-2)}）`;
+    }
+    if (subCounts[key]) {
+      label += `（${subCounts[key].size}ジャンル合算）`;
+    }
+    labels.push(label);
     values.push(val);
   }
 
@@ -186,14 +198,13 @@ async function loadMonthlyTotal() {
   if (window.pieChart && typeof window.pieChart.destroy === "function") {
     window.pieChart.destroy();
   }
-
   const colors = labels.map((_, i) => `hsl(${i * 30 % 360}, 60%, 60%)`);
 
   const ctxBar = document.getElementById("barChart").getContext("2d");
   window.barChart = new Chart(ctxBar, {
     type: 'bar',
     data: {
-      labels,
+      labels: labels,
       datasets: [{
         label: '売上指数（千円）',
         data: values,
@@ -212,7 +223,7 @@ async function loadMonthlyTotal() {
   window.pieChart = new Chart(ctxPie, {
     type: 'pie',
     data: {
-      labels,
+      labels: labels,
       datasets: [{
         data: values,
         backgroundColor: colors
@@ -223,25 +234,6 @@ async function loadMonthlyTotal() {
         title: { display: true, text: "ジャンル構成比（円グラフ）" }
       }
     }
-  });
-}
-
-async function downloadPDF() {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: "landscape" });
-
-  const chartArea = document.getElementById("chartContainer");
-  const startMonth = document.getElementById("startMonth").value;
-  const endMonth = document.getElementById("endMonth").value;
-  const fileLabel = selectedPath[selectedPath.length - 1] || "ジャンル";
-  const filename = `${fileLabel}_${startMonth}_${endMonth}.pdf`;
-
-  await html2canvas(chartArea, { scale: 2 }).then(canvas => {
-    const imgData = canvas.toDataURL("image/png");
-    const width = doc.internal.pageSize.getWidth();
-    const height = (canvas.height * width) / canvas.width;
-    doc.addImage(imgData, 'PNG', 0, 10, width, height);
-    doc.save(filename);
   });
 }
 
