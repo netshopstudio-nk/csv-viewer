@@ -115,7 +115,7 @@ async function loadMonthlyTotal() {
   const genreType = topGenre.includes("ダイエット") ? "health" : "food";
   const depth = selectedPath.length;
 
-  // 最下層かどうかを判定
+  // 👇 最下層かどうかをチェックし、actualDepth を設定
   const subtree = selectedPath.reduce((node, key) => node?.[key], genreTree);
   const hasChild = subtree && Object.keys(subtree).length > 0;
   const actualDepth = hasChild ? depth + 1 : depth;
