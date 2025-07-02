@@ -23,171 +23,240 @@
       align-items: center;
     }
     select, button {
-      font-size: 14px;
-      padding: 4px 8px;
+      font-size: 1rem;
+      padding: 5px 10px;
     }
-    canvas { max-width: 100%; }
+    #chartContainer {
+      margin-top: 40px;
+    }
+    canvas {
+      max-width: 100%;
+      margin: 20px 0;
+    }
   </style>
 </head>
 <body>
-  <h2>ジャンル別CSVビューア（月間合計）</h2>
-  <div class="controls">
-    <div class="control-row">
-      <label>ジャンル:</label>
-      <div id="genre-selects"></div>
-    </div>
-    <div class="control-row">
-      <label>年月:</label>
-      <select id="monthSelect"></select>
-      <button onclick="loadMonthlyTotal()">表示</button>
-    </div>
+<h2>ジャンル別 月間合計ビューア</h2>
+<p>ジャンル階層を選択し、指定した期間の売上合計を表示します。</p>
+<div class="controls">
+  <div class="control-row" id="genreSelects"></div>
+  <div class="control-row">
+    <label>開始月:
+      <select id="startMonth"></select>
+    </label>
+    <label>終了月:
+      <select id="endMonth"></select>
+    </label>
+    <button onclick="loadMonthlyTotal()">表示</button>
   </div>
-  <table id="resultTable" class="display" style="width:100%">
-    <thead><tr><th>ジャンル</th><th>売上指数（千円）</th></tr></thead>
-    <tbody></tbody>
-  </table>
-  <canvas id="barChart" height="200"></canvas>
-  <canvas id="pieChart" height="200"></canvas>
+</div>
 
-  <script>
-    let genreTree = {};
-    let csvData = [];
+<table id="dataTable" class="display" style="width:100%">
+  <thead>
+    <tr><th>ジャンル名</th><th>売上指数（千円）</th><th>シェア</th></tr>
+  </thead>
+  <tbody></tbody>
+</table>
 
-    async function fetchGenreTree() {
-      const response = await fetch('genre_tree_merged.json');
-      genreTree = await response.json();
-      renderSelectUI();
+<div id="chartContainer">
+  <canvas id="barChart"></canvas>
+  <canvas id="pieChart"></canvas>
+</div>
+
+<script>
+let genreTree = {};
+let selectedPath = [];
+
+fetch('genre_tree_merged.json')
+  .then(res => res.json())
+  .then(data => {
+    genreTree = data;
+    renderSelectUI(genreTree, document.getElementById("genreSelects"));
+  });
+
+function renderSelectUI(tree, container, path = []) {
+  if (container.children.length > path.length) {
+    container.innerHTML = '';
+    renderSelectUI(genreTree, container);
+    return;
+  }
+  const select = document.createElement("select");
+  select.innerHTML = `<option value="">選択してください</option>`;
+  for (const key in tree) {
+    const hasChildren = Object.keys(tree[key]).length > 0;
+    const option = document.createElement("option");
+    option.value = key;
+    option.textContent = hasChildren ? `${key} ▸` : key;
+    select.appendChild(option);
+  }
+  select.onchange = () => {
+    while (container.children.length > path.length + 1) {
+      container.removeChild(container.lastChild);
     }
-
-    function renderSelectUI() {
-      const container = document.getElementById("genre-selects");
-      container.innerHTML = "";
-
-      let tree = genreTree;
-      let selectedPath = [];
-
-      function createSelect(levelTree, depth) {
-        const select = document.createElement("select");
-        const emptyOption = document.createElement("option");
-        emptyOption.text = "---";
-        emptyOption.value = "";
-        select.appendChild(emptyOption);
-
-        for (let key in levelTree) {
-          const option = document.createElement("option");
-          option.text = key;
-          option.value = key;
-          select.appendChild(option);
-        }
-
-        select.onchange = () => {
-          selectedPath = selectedPath.slice(0, depth);
-          if (select.value) {
-            selectedPath.push(select.value);
-            renderSelectUI();
-          }
-        };
-
-        container.appendChild(select);
-        select.selectedIndex = 0;
-
-        const key = selectedPath[depth];
-        if (key && levelTree[key]) {
-          select.value = key;
-          const hasChildren = levelTree[key] && typeof levelTree[key] === 'object' && Object.keys(levelTree[key]).length > 0;
-          if (hasChildren) {
-            createSelect(levelTree[key], depth + 1);
-          }
-        }
-      }
-
-      createSelect(tree, 0);
+    const selected = select.value.replace(/ ▸$/, '');
+    selectedPath = [...path, selected];
+    if (selected && tree[selected]) {
+      renderSelectUI(tree[selected], container, selectedPath);
     }
+  };
+  container.appendChild(select);
+}
 
-    async function loadMonthlyTotal() {
-      const selectedMonth = document.getElementById("monthSelect").value;
-      const selects = document.querySelectorAll("#genre-selects select");
-      const selectedPath = Array.from(selects).map(s => s.value).filter(Boolean);
-      if (!selectedMonth || selectedPath.length === 0) {
-        alert("ジャンルと年月を選択してください");
-        return;
-      }
+async function loadMonthlyTotal() {
+  const startMonth = document.getElementById("startMonth").value;
+  const endMonth = document.getElementById("endMonth").value;
+  if (!startMonth || !endMonth || startMonth > endMonth) {
+    alert("正しい月の範囲を選択してください");
+    return;
+  }
 
-      const filename = `data/${selectedMonth}.csv`;
-      const response = await fetch(filename);
-      const text = await response.text();
-      const lines = text.trim().split("\n").slice(1);
-      const rows = lines.map(line => {
-        const [genre, sales] = line.split(",");
-        return { genre: genre.trim(), sales: parseFloat(sales) };
-      });
+  const genrePrefix = selectedPath.join(">");
+  const topGenre = selectedPath[0] || "";
+  const genreType = topGenre.includes("ダイエット") ? "health" : "food";
+  const depth = selectedPath.length;
 
-      // 最下層判定
-      const depth = selectedPath.length;
-      const subtree = selectedPath.reduce((t, k) => t?.[k], genreTree);
-      const isLeaf = subtree && Object.keys(subtree).length === 0;
-      const actualDepth = isLeaf ? depth : depth + 1;
+  // 最下層かどうかを判定
+  const subtree = selectedPath.reduce((node, key) => node?.[key], genreTree);
+  const hasChild = subtree && Object.keys(subtree).length > 0;
+  const actualDepth = hasChild ? depth + 1 : depth;
 
-      const filtered = {};
+  const months = [];
+  const [sy, sm] = startMonth.split("-").map(Number);
+  const [ey, em] = endMonth.split("-").map(Number);
+  for (let y = sy; y <= ey; y++) {
+    for (let m = 1; m <= 12; m++) {
+      if ((y === sy && m < sm) || (y === ey && m > em)) continue;
+      months.push(y + ("0" + m).slice(-2));
+    }
+  }
+
+  const buckets = {};
+  const subCounts = {};
+
+  for (const month of months) {
+    const filename = `data/${genreType}_${month}.csv`;
+    try {
+      const res = await fetch(filename);
+      if (!res.ok) continue;
+      const text = await res.text();
+      const rows = text.trim().split("\n").slice(1);
       for (const row of rows) {
-        const parts = row.genre.split(">").map(p => p.trim());
+        const [name, salesStr] = row.split(",");
+        if (!name.trim().startsWith(genrePrefix)) continue;
+        const parts = name.trim().split(">");
         if (parts.length < actualDepth) continue;
+
         const bucketKey = parts.slice(0, actualDepth).join(">");
-        if (!filtered[bucketKey]) {
-          filtered[bucketKey] = 0;
-        }
-        filtered[bucketKey] += row.sales;
-      }
+        const sales = parseFloat(salesStr || 0);
+        if (!buckets[bucketKey]) buckets[bucketKey] = 0;
+        buckets[bucketKey] += sales;
 
-      const data = Object.entries(filtered).map(([genre, sales]) => ({ genre, sales }));
-
-      // 表更新
-      const tbody = document.querySelector("#resultTable tbody");
-      tbody.innerHTML = "";
-      data.forEach(row => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${row.genre}</td><td>${row.sales.toLocaleString()}</td>`;
-        tbody.appendChild(tr);
-      });
-
-      if (window.barChart) window.barChart.destroy();
-      if (window.pieChart) window.pieChart.destroy();
-
-      const labels = data.map(d => d.genre);
-      const values = data.map(d => d.sales);
-
-      const barCtx = document.getElementById("barChart").getContext("2d");
-      window.barChart = new Chart(barCtx, {
-        type: 'bar',
-        data: { labels, datasets: [{ label: '売上指数（千円）', data: values }] }
-      });
-
-      const pieCtx = document.getElementById("pieChart").getContext("2d");
-      window.pieChart = new Chart(pieCtx, {
-        type: 'pie',
-        data: { labels, datasets: [{ data: values }] }
-      });
-    }
-
-    async function init() {
-      await fetchGenreTree();
-      const select = document.getElementById("monthSelect");
-      for (let y = 2022; y <= 2025; y++) {
-        for (let m = 1; m <= 12; m++) {
-          const mm = m.toString().padStart(2, "0");
-          const option = document.createElement("option");
-          option.value = `food_${y}${mm}`;
-          option.text = `食品 ${y}年${m}月`;
-          select.appendChild(option);
-          const option2 = document.createElement("option");
-          option2.value = `health_${y}${mm}`;
-          option2.text = `ダイエット・健康 ${y}年${m}月`;
-          select.appendChild(option2);
+        const childKey = parts.slice(0, actualDepth + 1).join(">");
+        if (parts.length > actualDepth) {
+          if (!subCounts[bucketKey]) subCounts[bucketKey] = new Set();
+          subCounts[bucketKey].add(childKey);
         }
       }
+    } catch (e) {
+      console.error("読み込みエラー:", filename);
     }
+  }
 
-    init();
-  </script>
+  const labels = [], values = [];
+  for (const [key, val] of Object.entries(buckets)) {
+    const parts = key.split(">");
+    let label = parts.at(-1);
+    if (label === "その他") {
+      label = `その他（${parts.at(-2)}）`;
+    }
+    if (subCounts[key]) {
+      label += `（${subCounts[key].size}ジャンル合算）`;
+    }
+    labels.push(label);
+    values.push(val);
+  }
+
+  const totalSales = values.reduce((sum, val) => sum + val, 0);
+  const tableData = labels.map((label, i) => [
+    genrePrefix + ">" + label,
+    values[i].toLocaleString(),
+    totalSales ? ((values[i] / totalSales) * 100).toFixed(2) + "%" : "0.00%"
+  ]);
+
+  if ($.fn.dataTable.isDataTable("#dataTable")) {
+    $('#dataTable').DataTable().clear().rows.add(tableData).draw();
+  } else {
+    $('#dataTable').DataTable({
+      data: tableData,
+      columns: [
+        { title: "ジャンル名" },
+        { title: "売上指数（千円）" },
+        { title: "シェア" }
+      ]
+    });
+  }
+
+  if (window.barChart && typeof window.barChart.destroy === "function") {
+    window.barChart.destroy();
+  }
+  if (window.pieChart && typeof window.pieChart.destroy === "function") {
+    window.pieChart.destroy();
+  }
+
+  const colors = labels.map((_, i) => `hsl(${i * 30 % 360}, 60%, 60%)`);
+
+  const ctxBar = document.getElementById("barChart").getContext("2d");
+  window.barChart = new Chart(ctxBar, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: '売上指数（千円）',
+        data: values,
+        backgroundColor: colors
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: {
+        title: { display: true, text: "ジャンル別 売上（棒グラフ）" }
+      }
+    }
+  });
+
+  const ctxPie = document.getElementById("pieChart").getContext("2d");
+  window.pieChart = new Chart(ctxPie, {
+    type: 'pie',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors
+      }]
+    },
+    options: {
+      plugins: {
+        title: { display: true, text: "ジャンル構成比（円グラフ）" }
+      }
+    }
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const start = document.getElementById("startMonth");
+  const end = document.getElementById("endMonth");
+  for (let y = 2022; y <= 2025; y++) {
+    for (let m = 1; m <= 12; m++) {
+      const ym = `${y}-${("0" + m).slice(-2)}`;
+      if (ym >= "2022-05" && ym <= "2025-12") {
+        start.innerHTML += `<option value="${ym}">${ym}</option>`;
+        end.innerHTML += `<option value="${ym}">${ym}</option>`;
+      }
+    }
+  }
+  start.value = "2025-04";
+  end.value = "2025-05";
+});
+</script>
 </body>
 </html>
