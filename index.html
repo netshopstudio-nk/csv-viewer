@@ -80,12 +80,10 @@ function renderSelectUI(tree, container, path = []) {
     renderSelectUI(genreTree, container);
     return;
   }
-
   const select = document.createElement("select");
   select.innerHTML = `<option value="">選択してください</option>`;
-
   for (const key in tree) {
-    const hasChildren = Object.keys(tree[key] || {}).length > 0;
+    const hasChildren = Object.keys(tree[key]).length > 0;
     const option = document.createElement("option");
     option.value = key;
     option.textContent = hasChildren ? `${key} ▸` : key;
@@ -99,10 +97,11 @@ function renderSelectUI(tree, container, path = []) {
     const selected = select.value.replace(/ ▸$/, '');
     selectedPath = [...path, selected];
 
-    // 子があるなら再帰的にセレクト追加
-    if (tree[selected] && Object.keys(tree[selected]).length > 0) {
-      renderSelectUI(tree[selected], container, selectedPath);
+    const nextTree = tree[selected];
+    if (nextTree && Object.keys(nextTree).length > 0) {
+      renderSelectUI(nextTree, container, selectedPath);
     }
+    // ✅ 下位ジャンルがない場合もここで終了（選択確定）
   };
 
   container.appendChild(select);
