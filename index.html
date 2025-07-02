@@ -95,7 +95,9 @@ function renderSelectUI(tree, container, path = []) {
     }
     const selected = select.value.replace(/ ▸$/, '');
     selectedPath = [...path, selected];
-    if (selected && tree[selected]) {
+
+    // 子がある場合はさらにセレクト追加
+    if (selected && tree[selected] && Object.keys(tree[selected]).length > 0) {
       renderSelectUI(tree[selected], container, selectedPath);
     }
   };
@@ -115,7 +117,6 @@ async function loadMonthlyTotal() {
   const genreType = topGenre.includes("ダイエット") ? "health" : "food";
   const depth = selectedPath.length;
 
-  // 👇 最下層かどうかをチェックし、actualDepth を設定
   const subtree = selectedPath.reduce((node, key) => node?.[key], genreTree);
   const hasChild = subtree && Object.keys(subtree).length > 0;
   const actualDepth = hasChild ? depth + 1 : depth;
