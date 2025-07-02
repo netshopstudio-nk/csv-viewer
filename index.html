@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -114,7 +113,7 @@ async function loadMonthlyTotal() {
   const genrePrefix = selectedPath.join(">");
   const topGenre = selectedPath[0] || "";
   const genreType = topGenre.includes("ダイエット") ? "health" : "food";
-  const depth = selectedPath.length + 1;
+  const depth = selectedPath.length;
 
   const months = [];
   const [sy, sm] = startMonth.split("-").map(Number);
@@ -138,7 +137,7 @@ async function loadMonthlyTotal() {
       const rows = text.trim().split("\n").slice(1);
       for (const row of rows) {
         const [name, salesStr] = row.split(",");
-        if (!name.startsWith(genrePrefix)) continue;
+        if (!name.trim().startsWith(genrePrefix)) continue;
         const parts = name.trim().split(">");
         if (parts.length < depth) continue;
         const bucketKey = parts.slice(0, depth).join(">");
