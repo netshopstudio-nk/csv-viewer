@@ -115,6 +115,11 @@ async function loadMonthlyTotal() {
   const genreType = topGenre.includes("ダイエット") ? "health" : "food";
   const depth = selectedPath.length;
 
+  // 👇 最下層かどうかをチェックし、actualDepth を設定
+  const subtree = selectedPath.reduce((node, key) => node?.[key], genreTree);
+  const hasChild = subtree && Object.keys(subtree).length > 0;
+  const actualDepth = hasChild ? depth + 1 : depth;
+
   const months = [];
   const [sy, sm] = startMonth.split("-").map(Number);
   const [ey, em] = endMonth.split("-").map(Number);
@@ -139,14 +144,15 @@ async function loadMonthlyTotal() {
         const [name, salesStr] = row.split(",");
         if (!name.trim().startsWith(genrePrefix)) continue;
         const parts = name.trim().split(">");
-        if (parts.length < depth) continue;
-        const bucketKey = parts.slice(0, depth).join(">");
+        if (parts.length < actualDepth) continue;
+
+        const bucketKey = parts.slice(0, actualDepth).join(">");
         const sales = parseFloat(salesStr || 0);
         if (!buckets[bucketKey]) buckets[bucketKey] = 0;
         buckets[bucketKey] += sales;
 
-        const childKey = parts.slice(0, depth + 1).join(">");
-        if (parts.length > depth) {
+        const childKey = parts.slice(0, actualDepth + 1).join(">");
+        if (parts.length > actualDepth) {
           if (!subCounts[bucketKey]) subCounts[bucketKey] = new Set();
           subCounts[bucketKey].add(childKey);
         }
@@ -159,7 +165,6 @@ async function loadMonthlyTotal() {
   const labels = [], values = [];
   for (const [key, val] of Object.entries(buckets)) {
     const parts = key.split(">");
-    const base = key;
     let label = parts.at(-1);
     if (label === "その他") {
       label = `その他（${parts.at(-2)}）`;
@@ -197,6 +202,7 @@ async function loadMonthlyTotal() {
   if (window.pieChart && typeof window.pieChart.destroy === "function") {
     window.pieChart.destroy();
   }
+
   const colors = labels.map((_, i) => `hsl(${i * 30 % 360}, 60%, 60%)`);
 
   const ctxBar = document.getElementById("barChart").getContext("2d");
