@@ -10,11 +10,29 @@
   <style>
     body { font-family: sans-serif; padding: 20px; max-width: 1000px; margin: auto; }
     h2 { margin-bottom: 10px; }
-    .controls { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
-    .control-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-    select, button { font-size: 1rem; padding: 5px 10px; }
-    #chartContainer { margin-top: 40px; }
-    canvas { max-width: 100%; margin: 20px 0; }
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .control-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    select, button {
+      font-size: 1rem;
+      padding: 5px 10px;
+    }
+    #chartContainer {
+      margin-top: 40px;
+    }
+    canvas {
+      max-width: 100%;
+      margin: 20px 0;
+    }
   </style>
 </head>
 <body>
@@ -23,14 +41,20 @@
 <div class="controls">
   <div class="control-row" id="genreSelects"></div>
   <div class="control-row">
-    <label>開始月: <select id="startMonth"></select></label>
-    <label>終了月: <select id="endMonth"></select></label>
-    <button id="loadButton">表示</button>
+    <label>開始月:
+      <select id="startMonth"></select>
+    </label>
+    <label>終了月:
+      <select id="endMonth"></select>
+    </label>
+    <button onclick="loadMonthlyTotal()">表示</button>
   </div>
 </div>
 
 <table id="dataTable" class="display" style="width:100%">
-  <thead><tr><th>ジャンル名</th><th>売上指数（千円）</th><th>シェア</th></tr></thead>
+  <thead>
+    <tr><th>ジャンル名</th><th>売上指数（千円）</th><th>シェア</th></tr>
+  </thead>
   <tbody></tbody>
 </table>
 
@@ -39,9 +63,7 @@
   <canvas id="pieChart"></canvas>
 </div>
 
-<script type="module">
-import genreMapJaToEn from './genre_map.js';
-
+<script>
 let genreTree = {};
 let selectedPath = [];
 
@@ -51,8 +73,6 @@ fetch('genre_tree_merged.json')
     genreTree = data;
     renderSelectUI(genreTree, document.getElementById("genreSelects"));
   });
-
-document.getElementById("loadButton").addEventListener("click", loadMonthlyTotal);
 
 function renderSelectUI(tree, container, path = []) {
   if (container.children.length > path.length) {
@@ -69,16 +89,21 @@ function renderSelectUI(tree, container, path = []) {
     option.textContent = hasChildren ? `${key} ▸` : key;
     select.appendChild(option);
   }
+
   select.onchange = () => {
     while (container.children.length > path.length + 1) {
       container.removeChild(container.lastChild);
     }
     const selected = select.value.replace(/ ▸$/, '');
     selectedPath = [...path, selected];
-    if (selected && tree[selected]) {
-      renderSelectUI(tree[selected], container, selectedPath);
+
+    const nextTree = tree[selected];
+    if (nextTree && Object.keys(nextTree).length > 0) {
+      renderSelectUI(nextTree, container, selectedPath);
     }
+    // ✅ 下位ジャンルがない場合もここで終了（選択確定）
   };
+
   container.appendChild(select);
 }
 
@@ -90,16 +115,14 @@ async function loadMonthlyTotal() {
     return;
   }
 
-  const subtree = selectedPath.reduce((node, key) => node?.[key], genreTree);
-  const isLeaf = !subtree || Object.keys(subtree).length === 0;
-  const actualDepth = isLeaf ? selectedPath.length - 1 : selectedPath.length;
+  const genrePrefix = selectedPath.join(">");
+  const topGenre = selectedPath[0] || "";
+  const genreType = topGenre.includes("ダイエット") ? "health" : "food";
+  const depth = selectedPath.length;
 
-  const genrePathJa = selectedPath.slice(0, actualDepth).join(">");
-  const csvBaseName = genreMapJaToEn[genrePathJa];
-  if (!csvBaseName) {
-    alert("対応するCSVファイル名が見つかりませんでした：" + genrePathJa);
-    return;
-  }
+  const subtree = selectedPath.reduce((node, key) => node?.[key], genreTree);
+  const hasChild = subtree && Object.keys(subtree).length > 0;
+  const actualDepth = hasChild ? depth + 1 : depth;
 
   const months = [];
   const [sy, sm] = startMonth.split("-").map(Number);
@@ -115,7 +138,7 @@ async function loadMonthlyTotal() {
   const subCounts = {};
 
   for (const month of months) {
-    const filename = `data/${csvBaseName}_${month}.csv`;
+    const filename = `data/${genreType}_${month}.csv`;
     try {
       const res = await fetch(filename);
       if (!res.ok) continue;
@@ -123,7 +146,7 @@ async function loadMonthlyTotal() {
       const rows = text.trim().split("\n").slice(1);
       for (const row of rows) {
         const [name, salesStr] = row.split(",");
-        if (!name.trim().startsWith(genrePathJa)) continue;
+        if (!name.trim().startsWith(genrePrefix)) continue;
         const parts = name.trim().split(">");
         if (parts.length < actualDepth) continue;
 
@@ -147,15 +170,19 @@ async function loadMonthlyTotal() {
   for (const [key, val] of Object.entries(buckets)) {
     const parts = key.split(">");
     let label = parts.at(-1);
-    if (label === "その他") label = `その他（${parts.at(-2)}）`;
-    if (subCounts[key]) label += `（${subCounts[key].size}ジャンル合算）`;
+    if (label === "その他") {
+      label = `その他（${parts.at(-2)}）`;
+    }
+    if (subCounts[key]) {
+      label += `（${subCounts[key].size}ジャンル合算）`;
+    }
     labels.push(label);
     values.push(val);
   }
 
   const totalSales = values.reduce((sum, val) => sum + val, 0);
   const tableData = labels.map((label, i) => [
-    selectedPath.join(">") + ">" + label,
+    genrePrefix + ">" + label,
     values[i].toLocaleString(),
     totalSales ? ((values[i] / totalSales) * 100).toFixed(2) + "%" : "0.00%"
   ]);
@@ -173,8 +200,12 @@ async function loadMonthlyTotal() {
     });
   }
 
-  if (window.barChart?.destroy) window.barChart.destroy();
-  if (window.pieChart?.destroy) window.pieChart.destroy();
+  if (window.barChart && typeof window.barChart.destroy === "function") {
+    window.barChart.destroy();
+  }
+  if (window.pieChart && typeof window.pieChart.destroy === "function") {
+    window.pieChart.destroy();
+  }
 
   const colors = labels.map((_, i) => `hsl(${i * 30 % 360}, 60%, 60%)`);
 
@@ -182,19 +213,36 @@ async function loadMonthlyTotal() {
   window.barChart = new Chart(ctxBar, {
     type: 'bar',
     data: {
-      labels, datasets: [{ label: '売上指数（千円）', data: values, backgroundColor: colors }]
+      labels: labels,
+      datasets: [{
+        label: '売上指数（千円）',
+        data: values,
+        backgroundColor: colors
+      }]
     },
     options: {
       indexAxis: 'y',
-      plugins: { title: { display: true, text: "ジャンル別 売上（棒グラフ）" } }
+      plugins: {
+        title: { display: true, text: "ジャンル別 売上（棒グラフ）" }
+      }
     }
   });
 
   const ctxPie = document.getElementById("pieChart").getContext("2d");
   window.pieChart = new Chart(ctxPie, {
     type: 'pie',
-    data: { labels, datasets: [{ data: values, backgroundColor: colors }] },
-    options: { plugins: { title: { display: true, text: "ジャンル構成比（円グラフ）" } } }
+    data: {
+      labels: labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors
+      }]
+    },
+    options: {
+      plugins: {
+        title: { display: true, text: "ジャンル構成比（円グラフ）" }
+      }
+    }
   });
 }
 
